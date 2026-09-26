@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   Bold, Italic, Heading2, Heading3, List, ListOrdered,
-  Quote, Code, Image as ImageIcon, Youtube, Link as LinkIcon, Minus
+  Quote, Code, Image as ImageIcon, Link as LinkIcon, Minus
 } from 'lucide-react';
+import { YoutubeIcon } from '../common/SocialIcons';
 
 interface RichTextEditorProps {
   value: string;
@@ -134,7 +135,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange 
           className="p-2 rounded-lg bg-red-50 text-red-700 border border-red-200 hover:bg-red-600 hover:text-white font-semibold text-xs flex items-center gap-1 transition-colors"
           title="Embed YouTube Video"
         >
-          <Youtube className="w-4 h-4" /> YouTube Embed
+          <YoutubeIcon className="w-4 h-4" /> YouTube Embed
         </button>
       </div>
 
