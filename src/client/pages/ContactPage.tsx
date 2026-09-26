@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { SeoHead } from '../components/common/SeoHead';
 import { submitContactForm } from '../services/api';
 import { trackPageView } from '../analytics/tracker';
-import { Mail, Phone, MapPin, Send, CheckCircle2, AlertCircle, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
+import { Mail, Phone, MapPin, Send, CheckCircle2, AlertCircle } from 'lucide-react';
+import { FacebookIcon, InstagramIcon, TwitterIcon, YoutubeIcon } from '../components/common/SocialIcons';
 
 export const ContactPage: React.FC = () => {
   const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
@@ -106,16 +107,16 @@ export const ContactPage: React.FC = () => {
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Social Accounts</h4>
                   <div className="flex items-center gap-3">
                     <a href="https://facebook.com/benir.thegeneral" target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-xl bg-slate-100 hover:bg-sky-600 hover:text-white transition-colors">
-                      <Facebook className="w-5 h-5" />
+                      <FacebookIcon className="w-5 h-5" />
                     </a>
                     <a href="https://instagram.com/benirbenjamin" target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-xl bg-slate-100 hover:bg-sky-600 hover:text-white transition-colors">
-                      <Instagram className="w-5 h-5" />
+                      <InstagramIcon className="w-5 h-5" />
                     </a>
                     <a href="https://x.com/benirbenjamin" target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-xl bg-slate-100 hover:bg-sky-600 hover:text-white transition-colors">
-                      <Twitter className="w-5 h-5" />
+                      <TwitterIcon className="w-5 h-5" />
                     </a>
                     <a href="https://youtube.com/@nebelurw" target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-xl bg-slate-100 hover:bg-sky-600 hover:text-white transition-colors">
-                      <Youtube className="w-5 h-5" />
+                      <YoutubeIcon className="w-5 h-5" />
                     </a>
                   </div>
                 </div>

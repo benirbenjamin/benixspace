@@ -1,8 +1,9 @@
 import React from 'react';
 import {
-  Code, TrendingUp, Share2, Youtube, Music, Video,
+  Code, TrendingUp, Share2, Music, Video,
   Radio, Camera, Sliders, CheckCircle2
 } from 'lucide-react';
+import { YoutubeIcon } from '../common/SocialIcons';
 
 export const ServicesSection: React.FC = () => {
   const services = [
@@ -25,7 +26,7 @@ export const ServicesSection: React.FC = () => {
       features: ['Account Growth', 'Content Publishing', 'Campaigns', 'Social Strategy']
     },
     {
-      icon: Youtube,
+      icon: YoutubeIcon,
       title: 'YouTube Services',
       description: 'YouTube channel creation, video metadata optimization, publishing strategies, and subscriber growth.',
       features: ['Channel Creation', 'Video Publishing', 'Growth Strategy', 'Channel Audit']
