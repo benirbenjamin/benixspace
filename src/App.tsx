@@ -26,6 +26,8 @@ import { AdminBlogEditPage } from './client/pages/admin/AdminBlogEditPage';
 import { AdminAnalyticsPage } from './client/pages/admin/AdminAnalyticsPage';
 import { AdminSeoPage } from './client/pages/admin/AdminSeoPage';
 import { AdminSettingsPage } from './client/pages/admin/AdminSettingsPage';
+import { AdminProfilePage } from './client/pages/admin/AdminProfilePage';
+import { AdminUsersPage } from './client/pages/admin/AdminUsersPage';
 import { getAuthToken } from './client/services/api';
 
 const ProtectedAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -81,6 +83,22 @@ export const App: React.FC = () => {
             element={
               <ProtectedAdminRoute>
                 <AdminBlogEditPage />
+              </ProtectedAdminRoute>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <ProtectedAdminRoute>
+                <AdminUsersPage />
+              </ProtectedAdminRoute>
+            }
+          />
+          <Route
+            path="/admin/profile"
+            element={
+              <ProtectedAdminRoute>
+                <AdminProfilePage />
               </ProtectedAdminRoute>
             }
           />

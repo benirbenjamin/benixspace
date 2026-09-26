@@ -160,3 +160,84 @@ export async function updateCompanySettings(settings: Partial<CompanySettings>) 
   if (!res.ok) throw new Error('Failed to update company settings');
   return res.json();
 }
+
+export async function updateAdminProfile(name: string, email: string) {
+  const token = getAuthToken();
+  const res = await fetch('/api/auth/profile', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ name, email })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to update profile');
+  return data;
+}
+
+export async function changeAdminPassword(currentPassword: string, newPassword: string) {
+  const token = getAuthToken();
+  const res = await fetch('/api/auth/password', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ currentPassword, newPassword })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to change password');
+  return data;
+}
+
+export async function fetchUsers() {
+  const token = getAuthToken();
+  const res = await fetch('/api/users', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error('Failed to fetch users');
+  const data = await res.json();
+  return data.users || [];
+}
+
+export async function createUser(userData: { email: string; password: string; name: string; role: 'admin' | 'editor' }) {
+  const token = getAuthToken();
+  const res = await fetch('/api/users', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(userData)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to create user');
+  return data;
+}
+
+export async function deleteUser(id: number) {
+  const token = getAuthToken();
+  const res = await fetch(`/api/users/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to delete user');
+  return data;
+}
+
+export async function updateArticleStatus(id: number, status: 'published' | 'pending_review' | 'draft') {
+  const token = getAuthToken();
+  const res = await fetch(`/api/blog/${id}/status`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ status })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to update article status');
+  return data;
+}

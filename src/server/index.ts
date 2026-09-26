@@ -1,9 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import bcrypt from 'bcryptjs';
 import { initDb } from './db/init';
 import { query } from './db/db';
-import { generateToken, comparePassword, authenticateAdmin, AuthenticatedRequest } from './auth/auth';
+import { generateToken, comparePassword, authenticateAdmin, requireAdminRole, AuthenticatedRequest } from './auth/auth';
 
 dotenv.config();
 
@@ -53,6 +54,133 @@ app.get('/api/auth/me', authenticateAdmin, async (req: AuthenticatedRequest, res
       return res.status(404).json({ error: 'User not found.' });
     }
     return res.json({ user: userRes.rows[0] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/auth/profile', authenticateAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { name, email } = req.body;
+    if (!name || !email) {
+      return res.status(400).json({ error: 'Name and email are required.' });
+    }
+
+    const result = await query(
+      'UPDATE users SET name = $1, email = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING id, email, name, role',
+      [name, email, req.user?.id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User profile not found.' });
+    }
+
+    return res.json({ success: true, message: 'Profile updated successfully.', user: result.rows[0] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/auth/password', authenticateAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required.' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters long.' });
+    }
+
+    const userRes = await query('SELECT * FROM users WHERE id = $1', [req.user?.id]);
+    if (userRes.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const user = userRes.rows[0];
+    const match = await comparePassword(currentPassword, user.password_hash);
+    if (!match) {
+      return res.status(400).json({ error: 'Current password is incorrect.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const newHash = await bcrypt.hash(newPassword, salt);
+
+    await query('UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [newHash, req.user?.id]);
+
+    return res.json({ success: true, message: 'Password changed successfully!' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== USER MANAGEMENT API ==================== //
+
+app.get('/api/users', authenticateAdmin, requireAdminRole, async (req, res) => {
+  try {
+    const result = await query('SELECT id, email, name, role, created_at FROM users ORDER BY created_at DESC');
+    return res.json({ users: result.rows });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/users', authenticateAdmin, requireAdminRole, async (req, res) => {
+  try {
+    const { email, password, name, role } = req.body;
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: 'Email, password, and name are required.' });
+    }
+
+    const existing = await query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existing.rowCount! > 0) {
+      return res.status(400).json({ error: 'A user with this email address already exists.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(password, salt);
+    const userRole = role === 'admin' ? 'admin' : 'editor';
+
+    const result = await query(
+      'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role, created_at',
+      [email, hash, name, userRole]
+    );
+
+    return res.status(201).json({ user: result.rows[0], message: `User ${name} created successfully as ${userRole}.` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/users/:id', authenticateAdmin, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, role } = req.body;
+
+    const result = await query(
+      'UPDATE users SET name = $1, email = $2, role = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 RETURNING id, email, name, role',
+      [name, email, role, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    return res.json({ user: result.rows[0], message: 'User updated successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/users/:id', authenticateAdmin, requireAdminRole, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    if (parseInt(id, 10) === req.user?.id) {
+      return res.status(400).json({ error: 'You cannot delete your own account.' });
+    }
+
+    await query('DELETE FROM users WHERE id = $1', [id]);
+    return res.json({ success: true, message: 'User deleted successfully.' });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -236,7 +364,7 @@ app.get('/api/blog/:slug', async (req, res) => {
   }
 });
 
-app.post('/api/blog', authenticateAdmin, async (req, res) => {
+app.post('/api/blog', authenticateAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const {
       title, slug, summary, content, featured_image_url, category, tags,
@@ -247,32 +375,38 @@ app.post('/api/blog', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Title, slug, and content are required.' });
     }
 
+    // Editors submit articles as pending_review unless created directly by admin
+    const initialStatus = req.user?.role === 'admin' ? (status || 'published') : 'pending_review';
+
     const result = await query(
       `INSERT INTO articles 
-        (title, slug, summary, content, featured_image_url, category, tags, author_name, status, seo_title, seo_description, seo_keywords, canonical_url, og_image_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        (title, slug, summary, content, featured_image_url, category, tags, author_name, author_id, status, seo_title, seo_description, seo_keywords, canonical_url, og_image_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING *`,
       [
         title, slug, summary || '', content, featured_image_url || '',
-        category || 'Technology', JSON.stringify(tags || []), author_name || 'Benir Benjamin',
-        status || 'published', seo_title || title, seo_description || summary || title,
+        category || 'Technology', JSON.stringify(tags || []), author_name || req.user?.email || 'Author',
+        req.user?.id || null, initialStatus, seo_title || title, seo_description || summary || title,
         seo_keywords || '', canonical_url || '', og_image_url || featured_image_url || ''
       ]
     );
 
-    return res.status(201).json({ article: result.rows[0] });
+    return res.status(201).json({ article: result.rows[0], message: initialStatus === 'pending_review' ? 'Article submitted for admin review.' : 'Article published.' });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
 });
 
-app.put('/api/blog/:id', authenticateAdmin, async (req, res) => {
+app.put('/api/blog/:id', authenticateAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
     const {
       title, slug, summary, content, featured_image_url, category, tags,
       author_name, status, seo_title, seo_description, seo_keywords, canonical_url, og_image_url
     } = req.body;
+
+    // Editors cannot force published status directly unless admin
+    const targetStatus = req.user?.role === 'admin' ? (status || 'published') : 'pending_review';
 
     const result = await query(
       `UPDATE articles SET 
@@ -284,7 +418,7 @@ app.put('/api/blog/:id', authenticateAdmin, async (req, res) => {
       [
         title, slug, summary, content, featured_image_url, category,
         typeof tags === 'string' ? tags : JSON.stringify(tags || []), author_name,
-        status, seo_title, seo_description, seo_keywords, canonical_url, og_image_url, id
+        targetStatus, seo_title, seo_description, seo_keywords, canonical_url, og_image_url, id
       ]
     );
 
@@ -293,6 +427,31 @@ app.put('/api/blog/:id', authenticateAdmin, async (req, res) => {
     }
 
     return res.json({ article: result.rows[0] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin Approval Endpoint
+app.put('/api/blog/:id/status', authenticateAdmin, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body; // 'published' | 'pending_review' | 'draft'
+
+    if (!['published', 'pending_review', 'draft'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status value.' });
+    }
+
+    const result = await query(
+      'UPDATE articles SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [status, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Article not found.' });
+    }
+
+    return res.json({ article: result.rows[0], message: `Article status updated to ${status}.` });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

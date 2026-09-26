@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { removeAuthToken } from '../../services/api';
 import {
   LayoutDashboard, Layers, FileText, BarChart3, SearchCheck,
-  Settings, LogOut, Menu, X, Rocket, ShieldCheck, Mail
+  Settings, LogOut, Menu, X, Rocket, ShieldCheck, Mail, Users, UserCheck
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -24,9 +24,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { name: 'Dashboard Overview', path: '/admin', icon: LayoutDashboard },
     { name: 'Project Portfolio', path: '/admin/projects', icon: Layers },
     { name: 'Blog Articles CMS', path: '/admin/blog', icon: FileText },
+    { name: 'Users & Editors', path: '/admin/users', icon: Users },
     { name: 'Visitor Analytics', path: '/admin/analytics', icon: BarChart3 },
     { name: 'SEO Health & Audit', path: '/admin/seo', icon: SearchCheck },
     { name: 'Company Settings', path: '/admin/settings/company', icon: Settings },
+    { name: 'My Profile & Security', path: '/admin/profile', icon: UserCheck },
   ];
 
   const isActive = (path: string) => location.pathname === path;

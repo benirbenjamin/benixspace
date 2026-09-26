@@ -60,3 +60,10 @@ export function authenticateAdmin(req: AuthenticatedRequest, res: Response, next
   req.user = decoded;
   next();
 }
+
+export function requireAdminRole(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Access denied. Administrator privileges required.' });
+  }
+  next();
+}

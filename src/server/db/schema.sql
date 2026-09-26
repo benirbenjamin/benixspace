@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS articles (
   category VARCHAR(100) DEFAULT 'Technology',
   tags TEXT, -- JSON array of tags
   author_name VARCHAR(100) DEFAULT 'Benir Benjamin',
-  status VARCHAR(50) DEFAULT 'published', -- 'draft' | 'published'
+  author_id INT REFERENCES users(id) ON DELETE SET NULL,
+  status VARCHAR(50) DEFAULT 'published', -- 'draft' | 'pending_review' | 'published'
   published_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   seo_title VARCHAR(255),
   seo_description TEXT,
