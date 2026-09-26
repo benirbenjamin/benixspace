@@ -4,6 +4,7 @@ import { HeroSection } from '../components/home/HeroSection';
 import { ServicesSection } from '../components/home/ServicesSection';
 import { ProjectCard3D } from '../components/projects/ProjectCard3D';
 import { SeoHead } from '../components/common/SeoHead';
+import { AdSenseUnit } from '../components/common/AdSenseUnit';
 import { fetchProjects, fetchArticles } from '../services/api';
 import { trackPageView } from '../analytics/tracker';
 import { Project, Article } from '../types';
@@ -116,6 +117,11 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* Scrollable AdSense Banner Unit */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 my-8">
+        <AdSenseUnit className="w-full" />
+      </div>
 
       {/* Featured Projects Showcase Section */}
       <section className="py-20 bg-slate-50">

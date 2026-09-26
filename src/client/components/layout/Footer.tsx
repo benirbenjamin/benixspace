@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Rocket, Mail, Phone, MapPin, Facebook, Instagram, Twitter, Youtube, ArrowUpRight } from 'lucide-react';
+import { Rocket, Mail, Phone, MapPin, ArrowUpRight } from 'lucide-react';
+import { FacebookIcon, InstagramIcon, TwitterIcon, YoutubeIcon } from '../common/SocialIcons';
 
 export const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear();
@@ -25,16 +26,16 @@ export const Footer: React.FC = () => {
             </p>
             <div className="flex items-center gap-3 pt-2">
               <a href="https://facebook.com/benir.thegeneral" target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-sky-600 hover:text-white flex items-center justify-center text-slate-400 transition-colors">
-                <Facebook className="w-4 h-4" />
+                <FacebookIcon className="w-4 h-4" />
               </a>
               <a href="https://instagram.com/benirbenjamin" target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-sky-600 hover:text-white flex items-center justify-center text-slate-400 transition-colors">
-                <Instagram className="w-4 h-4" />
+                <InstagramIcon className="w-4 h-4" />
               </a>
               <a href="https://x.com/benirbenjamin" target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-sky-600 hover:text-white flex items-center justify-center text-slate-400 transition-colors">
-                <Twitter className="w-4 h-4" />
+                <TwitterIcon className="w-4 h-4" />
               </a>
               <a href="https://youtube.com/@nebelurw" target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-sky-600 hover:text-white flex items-center justify-center text-slate-400 transition-colors">
-                <Youtube className="w-4 h-4" />
+                <YoutubeIcon className="w-4 h-4" />
               </a>
             </div>
           </div>

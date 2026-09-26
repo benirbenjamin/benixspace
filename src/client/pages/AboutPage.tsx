@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { SeoHead } from '../components/common/SeoHead';
+import { AdSenseUnit } from '../components/common/AdSenseUnit';
 import { trackPageView } from '../analytics/tracker';
 import { Rocket, ShieldCheck, Mail, Phone, MapPin, CheckCircle2, ArrowRight } from 'lucide-react';
 
@@ -111,6 +112,11 @@ export const AboutPage: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* AdSense Unit */}
+          <div className="py-4">
+            <AdSenseUnit className="w-full" />
           </div>
 
           {/* Contact Banner */}

@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ServicesSection } from '../components/home/ServicesSection';
 import { SeoHead } from '../components/common/SeoHead';
+import { AdSenseUnit } from '../components/common/AdSenseUnit';
 import { trackPageView } from '../analytics/tracker';
 import { ArrowRight, Phone, Mail } from 'lucide-react';
 
@@ -58,6 +59,11 @@ export const ServicesPage: React.FC = () => {
                 <span>Call 0783987223</span>
               </a>
             </div>
+          </div>
+
+          {/* AdSense Unit */}
+          <div className="pt-4">
+            <AdSenseUnit className="w-full" />
           </div>
 
         </div>

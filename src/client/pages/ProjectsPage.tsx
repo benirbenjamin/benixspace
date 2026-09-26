@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ProjectCard3D } from '../components/projects/ProjectCard3D';
 import { SeoHead } from '../components/common/SeoHead';
+import { AdSenseUnit } from '../components/common/AdSenseUnit';
 import { fetchProjects } from '../services/api';
 import { trackPageView } from '../analytics/tracker';
 import { Project } from '../types';
@@ -171,11 +172,27 @@ export const ProjectsPage: React.FC = () => {
               <p className="text-slate-500 text-sm">Try clearing filters or searching for different keywords.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredProjects.map((project) => (
-                <ProjectCard3D key={project.id} project={project} />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {filteredProjects.map((project, index) => (
+                  <React.Fragment key={project.id}>
+                    <ProjectCard3D project={project} />
+
+                    {/* In-Feed Ad Unit every 3 project cards */}
+                    {index % 3 === 2 && index !== filteredProjects.length - 1 && (
+                      <div className="glass-card rounded-3xl p-4 border border-slate-200/80 flex items-center justify-center col-span-1 md:col-span-2 lg:col-span-3 my-4">
+                        <AdSenseUnit format="fluid" layoutKey="-6t+ed+2i-1n-4x" className="w-full" />
+                      </div>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+
+              {/* Bottom Scroll Banner Ad */}
+              <div className="pt-8">
+                <AdSenseUnit className="w-full" />
+              </div>
+            </>
           )}
 
         </div>

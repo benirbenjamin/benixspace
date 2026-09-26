@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { SeoHead } from '../components/common/SeoHead';
+import { AdSenseUnit } from '../components/common/AdSenseUnit';
 import { fetchProjectBySlug } from '../services/api';
 import { trackPageView, trackProjectClick } from '../analytics/tracker';
 import { Project } from '../types';
@@ -200,6 +201,11 @@ export const ProjectDetailPage: React.FC = () => {
               alt={project.name}
               className="w-full h-auto max-h-[500px] object-cover object-top"
             />
+          </div>
+
+          {/* AdSense Unit */}
+          <div className="my-6">
+            <AdSenseUnit className="w-full" />
           </div>
 
           {/* Detailed Description */}

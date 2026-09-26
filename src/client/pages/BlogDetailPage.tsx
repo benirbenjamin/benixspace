@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { SeoHead } from '../components/common/SeoHead';
+import { ArticleAdInjector } from '../components/common/ArticleAdInjector';
+import { AdSenseUnit } from '../components/common/AdSenseUnit';
 import { fetchArticleBySlug } from '../services/api';
 import { trackPageView } from '../analytics/tracker';
 import { Article } from '../types';
@@ -132,11 +134,16 @@ export const BlogDetailPage: React.FC = () => {
               </div>
             )}
 
-            {/* Article HTML Content */}
-            <div
-              className="prose prose-sky max-w-none text-slate-700 leading-relaxed text-base space-y-4"
-              dangerouslySetInnerHTML={{ __html: article.content }}
+            {/* Article Content with Injected Ads */}
+            <ArticleAdInjector
+              content={article.content}
+              className="prose prose-sky max-w-none text-slate-700 leading-relaxed text-base"
             />
+
+            {/* In-Article Bottom Banner Ad */}
+            <div className="my-8">
+              <AdSenseUnit className="w-full" />
+            </div>
 
             {/* Tags */}
             {tags.length > 0 && (

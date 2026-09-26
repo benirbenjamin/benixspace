@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SeoHead } from '../components/common/SeoHead';
+import { AdSenseUnit } from '../components/common/AdSenseUnit';
 import { fetchArticles } from '../services/api';
 import { trackPageView } from '../analytics/tracker';
 import { Article } from '../types';
@@ -118,58 +119,73 @@ export const BlogPage: React.FC = () => {
               <p className="text-slate-500 text-sm">Check back soon for new publications from NebeluRw.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredArticles.map((article) => (
-                <article
-                  key={article.id}
-                  className="glass-card rounded-3xl overflow-hidden border border-slate-200/80 hover:shadow-xl transition-all group flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="h-52 overflow-hidden bg-slate-900 relative">
-                      <img
-                        src={article.featured_image_url || 'https://i.postimg.cc/85zP6mK2/benix-tv-cover.jpg'}
-                        alt={article.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
-                      />
-                    </div>
-                    <div className="p-6 space-y-3">
-                      <div className="flex items-center justify-between text-xs text-slate-500">
-                        <span className="font-semibold text-sky-600 bg-sky-50 px-2.5 py-0.5 rounded-full">
-                          {article.category}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5" />
-                          <span>{new Date(article.published_at || article.created_at || '').toLocaleDateString()}</span>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {filteredArticles.map((article, index) => (
+                  <React.Fragment key={article.id}>
+                    <article
+                      className="glass-card rounded-3xl overflow-hidden border border-slate-200/80 hover:shadow-xl transition-all group flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="h-52 overflow-hidden bg-slate-900 relative">
+                          <img
+                            src={article.featured_image_url || 'https://i.postimg.cc/85zP6mK2/benix-tv-cover.jpg'}
+                            alt={article.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            loading="lazy"
+                          />
+                        </div>
+                        <div className="p-6 space-y-3">
+                          <div className="flex items-center justify-between text-xs text-slate-500">
+                            <span className="font-semibold text-sky-600 bg-sky-50 px-2.5 py-0.5 rounded-full">
+                              {article.category}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5" />
+                              <span>{new Date(article.published_at || article.created_at || '').toLocaleDateString()}</span>
+                            </div>
+                          </div>
+
+                          <h2 className="text-xl font-bold text-slate-900 group-hover:text-sky-600 transition-colors line-clamp-2">
+                            {article.title}
+                          </h2>
+
+                          <p className="text-slate-600 text-sm line-clamp-3 leading-relaxed">
+                            {article.summary}
+                          </p>
                         </div>
                       </div>
 
-                      <h2 className="text-xl font-bold text-slate-900 group-hover:text-sky-600 transition-colors line-clamp-2">
-                        {article.title}
-                      </h2>
+                      <div className="px-6 pb-6 pt-2 border-t border-slate-100 flex items-center justify-between">
+                        <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
+                          <User className="w-3.5 h-3.5 text-sky-600" />
+                          {article.author_name}
+                        </span>
+                        <Link
+                          to={`/blog/${article.slug}`}
+                          className="inline-flex items-center gap-1 text-sky-600 font-bold text-xs hover:text-sky-700 transition-colors"
+                        >
+                          <span>Read Article</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
+                    </article>
 
-                      <p className="text-slate-600 text-sm line-clamp-3 leading-relaxed">
-                        {article.summary}
-                      </p>
-                    </div>
-                  </div>
+                    {/* In-feed Ad Unit every 3 cards */}
+                    {index % 3 === 2 && index !== filteredArticles.length - 1 && (
+                      <div className="glass-card rounded-3xl p-4 border border-slate-200/80 flex items-center justify-center col-span-1 md:col-span-2 lg:col-span-3 my-4">
+                        <AdSenseUnit format="fluid" layoutKey="-6t+ed+2i-1n-4x" className="w-full" />
+                      </div>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
 
-                  <div className="px-6 pb-6 pt-2 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
-                      <User className="w-3.5 h-3.5 text-sky-600" />
-                      {article.author_name}
-                    </span>
-                    <Link
-                      to={`/blog/${article.slug}`}
-                      className="inline-flex items-center gap-1 text-sky-600 font-bold text-xs hover:text-sky-700 transition-colors"
-                    >
-                      <span>Read Article</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
-                  </div>
-                </article>
-              ))}
-            </div>
+              {/* Bottom In-Feed Ad Banner */}
+              <div className="pt-8">
+                <AdSenseUnit className="w-full" />
+              </div>
+            </>
           )}
 
         </div>
