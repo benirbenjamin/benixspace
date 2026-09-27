@@ -38,7 +38,7 @@ export const AdminBlogEditPage: React.FC = () => {
       async function loadArticle() {
         try {
           const all = await fetchArticles({ status: 'all' });
-          const target = all.find((a) => a.id === parseInt(id, 10));
+          const target = all.find((a) => String(a.id) === String(id) || a.slug === id);
           if (target) {
             setFormData({
               ...target,

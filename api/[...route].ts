@@ -35,12 +35,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const rawUrl = req.url || '/api';
     const parsedUrl = new URL(rawUrl, 'http://localhost');
-    const pathname = parsedUrl.pathname.replace(/\/$/, '');
+    let pathname = parsedUrl.pathname.replace(/\/$/, '');
     const method = (req.method || 'GET').toUpperCase();
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
 
+    // Normalize path across Vercel catch-all and raw URL
+    const routeSegments = Array.isArray(req.query.route)
+      ? req.query.route
+      : (typeof req.query.route === 'string' ? [req.query.route] : []);
+
+    let normalizedPath = pathname;
+    if (routeSegments.length > 0) {
+      normalizedPath = '/api/' + routeSegments.join('/');
+    } else if (!normalizedPath.startsWith('/api')) {
+      normalizedPath = '/api' + (normalizedPath.startsWith('/') ? normalizedPath : '/' + normalizedPath);
+    }
+
     // 1. AUTH ROUTES
-    if (pathname === '/api/auth/login' && method === 'POST') {
+    if (normalizedPath === '/api/auth/login' && method === 'POST') {
       const email = body.email ? String(body.email).trim() : '';
       const password = body.password ? String(body.password) : '';
 
@@ -66,7 +78,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
-    if (pathname === '/api/auth/profile' && method === 'PUT') {
+    if (normalizedPath === '/api/auth/profile' && method === 'PUT') {
       const { name, email } = body;
       if (!name || !email) {
         return res.status(400).json({ error: 'Name and email are required.' });
@@ -78,7 +90,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    if (pathname === '/api/auth/password' && method === 'PUT') {
+    if (normalizedPath === '/api/auth/password' && method === 'PUT') {
       const { currentPassword, newPassword } = body;
       if (!currentPassword || !newPassword) {
         return res.status(400).json({ error: 'Current password and new password are required.' });
@@ -90,11 +102,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // 2. SETTINGS ROUTES
-    if (pathname === '/api/settings' && method === 'GET') {
+    if (normalizedPath === '/api/settings' && method === 'GET') {
       return res.status(200).json({ company: companyData, social: socialLinks });
     }
 
-    if (pathname === '/api/settings/company') {
+    if (normalizedPath === '/api/settings/company') {
       if (method === 'GET') return res.status(200).json({ company: companyData });
       if (method === 'PUT') {
         const updated = updateCompanyData(body);
@@ -103,7 +115,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // 3. BLOG / ARTICLE ROUTES
-    if (pathname === '/api/blog') {
+    if (normalizedPath === '/api/blog') {
       if (method === 'GET') {
         const { category, search, status } = req.query;
         let result = [...articles];
@@ -127,8 +139,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Nested /api/blog/:id/status
-    if (pathname.match(/^\/api\/blog\/[^/]+\/status$/) && method === 'PUT') {
-      const parts = pathname.split('/');
+    if (normalizedPath.match(/^\/api\/blog\/[^/]+\/status$/) && method === 'PUT') {
+      const parts = normalizedPath.split('/');
       const articleId = parts[3];
       const { status } = body;
       const updated = updateArticleStatusData(articleId, status);
@@ -136,8 +148,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Single /api/blog/:id
-    if (pathname.match(/^\/api\/blog\/[^/]+$/)) {
-      const articleId = pathname.replace('/api/blog/', '');
+    if (normalizedPath.match(/^\/api\/blog\/[^/]+$/)) {
+      const articleId = normalizedPath.replace('/api/blog/', '');
       if (method === 'GET') {
         const article = articles.find((a) => String(a.id) === articleId || a.slug === articleId);
         if (!article) return res.status(404).json({ error: 'Article not found.' });
@@ -154,7 +166,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // 4. PROJECT ROUTES
-    if (pathname === '/api/projects') {
+    if (normalizedPath === '/api/projects') {
       if (method === 'GET') {
         const { category, featured, status } = req.query;
         let result = [...projects];
@@ -174,9 +186,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Single /api/projects/:id
-    if (pathname.match(/^\/api\/projects\/[^/]+$/)) {
-      const projectId = pathname.replace('/api/projects/', '');
+    // Single /api/projects/:id (Handles PUT /api/projects/5, GET /api/projects/5, DELETE /api/projects/5)
+    if (normalizedPath.match(/^\/api\/projects\/[^/]+$/)) {
+      const projectId = normalizedPath.replace('/api/projects/', '');
       if (method === 'GET') {
         const project = projects.find((p) => String(p.id) === projectId || p.slug === projectId);
         if (!project) return res.status(404).json({ error: 'Project not found.' });
@@ -193,7 +205,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // 5. USER MANAGEMENT ROUTES
-    if (pathname === '/api/users') {
+    if (normalizedPath === '/api/users') {
       if (method === 'GET') return res.status(200).json({ users: DEFAULT_USERS });
       if (method === 'POST') {
         const { email, name, role } = body;
@@ -203,12 +215,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    if (pathname.match(/^\/api\/users\/[^/]+$/) && method === 'DELETE') {
+    if (normalizedPath.match(/^\/api\/users\/[^/]+$/) && method === 'DELETE') {
       return res.status(200).json({ success: true, message: 'User deleted successfully.' });
     }
 
     // 6. CONTACT & ANALYTICS ROUTES
-    if (pathname === '/api/contact' && method === 'POST') {
+    if (normalizedPath === '/api/contact' && method === 'POST') {
       const { name, email, subject, message } = body;
       if (!name || !email || !subject || !message) {
         return res.status(400).json({ error: 'All contact fields are required.' });
@@ -216,7 +228,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(201).json({ success: true, message: 'Message submitted successfully.' });
     }
 
-    if (pathname === '/api/analytics/stats' && method === 'GET') {
+    if (normalizedPath === '/api/analytics/stats' && method === 'GET') {
       return res.status(200).json({
         overview: { total_views: 1420, unique_visitors: 890, external_clicks: 340 },
         top_projects: [
@@ -234,11 +246,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    if (pathname === '/api/analytics/track' && method === 'POST') {
+    if (normalizedPath === '/api/analytics/track' && method === 'POST') {
       return res.status(200).json({ success: true });
     }
 
-    return res.status(404).json({ error: `API route ${pathname} not found` });
+    return res.status(404).json({ error: `API route ${normalizedPath} not found` });
   } catch (err: any) {
     console.error('Serverless catch-all error:', err);
     return res.status(500).json({ error: err?.message || 'Internal server error' });
