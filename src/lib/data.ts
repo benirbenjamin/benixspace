@@ -176,6 +176,13 @@ export let projects = [
   }
 ];
 
+export let blogCategories: string[] = [
+  'Technology',
+  'Software Development',
+  'Digital Marketing & SEO',
+  'NebeluRw News'
+];
+
 export let articles = [
   {
     id: 1,
@@ -201,11 +208,42 @@ export let articles = [
     status: 'published',
     published_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
+    views_count: 142,
+    comments_count: 2,
     seo_title: 'Building Modern Web Applications for Rwanda Digital Ecosystem | NebeluRw',
     seo_description: 'Discover how NebeluRw Co. Ltd develops web platforms, streaming tools, and software solutions in Rwanda.',
     seo_keywords: 'NebeluRw, software development Rwanda, Benir Benjamin, web apps Rwanda'
   }
 ];
+
+export let articleComments: any[] = [
+  {
+    id: 'c1',
+    article_id: 1,
+    parent_id: null,
+    author_name: 'Jean-Luc Mugisha',
+    content: 'Great initiative by NebeluRw Co. Ltd! The platforms like Benix Space TV and Voxify are truly transforming digital media access in Rwanda.',
+    likes_count: 5,
+    status: 'approved',
+    is_admin_reply: false,
+    user_ip: '197.243.0.1',
+    created_at: new Date(Date.now() - 86400000 * 2).toISOString()
+  },
+  {
+    id: 'c2',
+    article_id: 1,
+    parent_id: 'c1',
+    author_name: 'Benir Benjamin (NebeluRw)',
+    content: 'Thank you Jean-Luc! We appreciate your support as we continue expanding our streaming and technology platforms.',
+    likes_count: 8,
+    status: 'approved',
+    is_admin_reply: true,
+    user_ip: '10.0.0.1',
+    created_at: new Date(Date.now() - 86400000).toISOString()
+  }
+];
+
+export let bannedIps: string[] = [];
 
 export function updateCompanyData(newData: any) {
   companyData = { ...companyData, ...newData };
@@ -250,6 +288,32 @@ export function deleteProjectData(id: any) {
   return true;
 }
 
+export function getBlogCategoriesData() {
+  return blogCategories;
+}
+
+export function addBlogCategoryData(name: string) {
+  const trimmed = String(name || '').trim();
+  if (trimmed && !blogCategories.includes(trimmed)) {
+    blogCategories.push(trimmed);
+  }
+  return blogCategories;
+}
+
+export function editBlogCategoryData(oldName: string, newName: string) {
+  const trimmed = String(newName || '').trim();
+  const idx = blogCategories.indexOf(oldName);
+  if (idx !== -1 && trimmed) {
+    blogCategories[idx] = trimmed;
+    articles.forEach((art) => {
+      if (art.category === oldName) {
+        art.category = trimmed;
+      }
+    });
+  }
+  return blogCategories;
+}
+
 export function saveArticleData(articleData: any) {
   if (articleData.id) {
     const idx = articles.findIndex((a) => a.id === Number(articleData.id) || a.slug === String(articleData.id));
@@ -271,9 +335,14 @@ export function saveArticleData(articleData: any) {
     status: articleData.status || 'published',
     published_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
+    views_count: 0,
+    comments_count: 0,
     ...articleData
   };
   articles.unshift(newArticle);
+  if (newArticle.category && !blogCategories.includes(newArticle.category)) {
+    blogCategories.push(newArticle.category);
+  }
   return newArticle;
 }
 
@@ -292,4 +361,120 @@ export function updateArticleStatusData(id: any, status: string) {
     return articles[idx];
   }
   return { id, status };
+}
+
+export function incrementArticleViewCount(articleIdOrSlug: any) {
+  const art = articles.find((a) => String(a.id) === String(articleIdOrSlug) || a.slug === String(articleIdOrSlug));
+  if (art) {
+    art.views_count = (art.views_count || 0) + 1;
+    return art.views_count;
+  }
+  return 1;
+}
+
+export function getArticleCommentsData(articleId: any, isAdmin: boolean = false) {
+  const numericId = Number(articleId);
+  const targetArticles = articles.filter((a) => a.id === numericId || a.slug === String(articleId));
+  const targetId = targetArticles.length > 0 ? targetArticles[0].id : numericId;
+
+  const filtered = articleComments.filter((c) => {
+    const matchesArticle = Number(c.article_id) === Number(targetId);
+    if (!matchesArticle) return false;
+    if (isAdmin) return true;
+    return c.status === 'approved';
+  });
+
+  const commentMap = new Map<string, any>();
+  filtered.forEach((c) => commentMap.set(c.id, { ...c, replies: [] }));
+
+  const rootComments: any[] = [];
+  commentMap.forEach((c) => {
+    if (c.parent_id && commentMap.has(c.parent_id)) {
+      commentMap.get(c.parent_id).replies.push(c);
+    } else {
+      rootComments.push(c);
+    }
+  });
+
+  return rootComments;
+}
+
+export function getAllCommentsData() {
+  return articleComments.map((c) => {
+    const art = articles.find((a) => a.id === Number(c.article_id));
+    return {
+      ...c,
+      article_title: art ? art.title : `Article #${c.article_id}`
+    };
+  });
+}
+
+export function saveCommentData(commentData: {
+  article_id: number;
+  parent_id?: string | null;
+  author_name: string;
+  content: string;
+  is_admin_reply?: boolean;
+  user_ip?: string;
+}) {
+  const newComment = {
+    id: `c_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+    article_id: Number(commentData.article_id),
+    parent_id: commentData.parent_id || null,
+    author_name: commentData.author_name.trim(),
+    content: commentData.content.trim(),
+    likes_count: 0,
+    status: 'approved',
+    is_admin_reply: Boolean(commentData.is_admin_reply),
+    user_ip: commentData.user_ip || '127.0.0.1',
+    created_at: new Date().toISOString()
+  };
+
+  articleComments.unshift(newComment);
+
+  const art = articles.find((a) => a.id === Number(commentData.article_id));
+  if (art) {
+    art.comments_count = (art.comments_count || 0) + 1;
+  }
+
+  return newComment;
+}
+
+export function likeCommentData(commentId: string) {
+  const c = articleComments.find((item) => item.id === commentId);
+  if (c) {
+    c.likes_count = (c.likes_count || 0) + 1;
+    return c.likes_count;
+  }
+  return 0;
+}
+
+export function updateCommentStatusData(commentId: string, status: 'approved' | 'hidden' | 'flagged') {
+  const c = articleComments.find((item) => item.id === commentId);
+  if (c) {
+    c.status = status;
+    return c;
+  }
+  return null;
+}
+
+export function deleteCommentData(commentId: string) {
+  const idx = articleComments.findIndex((c) => c.id === commentId);
+  if (idx !== -1) {
+    const [deleted] = articleComments.splice(idx, 1);
+    articleComments = articleComments.filter((c) => c.parent_id !== commentId);
+    return deleted;
+  }
+  return null;
+}
+
+export function banUserIpData(ip: string) {
+  if (ip && !bannedIps.includes(ip)) {
+    bannedIps.push(ip);
+  }
+  return true;
+}
+
+export function isIpBanned(ip: string) {
+  return bannedIps.includes(ip);
 }

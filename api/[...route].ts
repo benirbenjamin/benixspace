@@ -10,8 +10,21 @@ import {
   deleteProjectData,
   saveArticleData,
   deleteArticleData,
-  updateArticleStatusData
+  updateArticleStatusData,
+  getBlogCategoriesData,
+  addBlogCategoryData,
+  editBlogCategoryData,
+  getArticleCommentsData,
+  getAllCommentsData,
+  saveCommentData,
+  likeCommentData,
+  updateCommentStatusData,
+  deleteCommentData,
+  banUserIpData,
+  isIpBanned,
+  incrementArticleViewCount
 } from '../src/lib/data.js';
+import { containsProfanity } from '../src/client/utils/moderation.js';
 
 const JWT_SECRET = process.env.AUTH_SECRET || 'benixspace-super-secret-jwt-key-2026-nebelurw';
 
@@ -38,6 +51,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const pathname = parsedUrl.pathname.replace(/\/$/, '');
     const method = (req.method || 'GET').toUpperCase();
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+
+    // Get client IP address for moderation
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
 
     // Segment extraction supporting both Vercel req.query.route and URL pathname
     let segments: string[] = [];
@@ -123,7 +139,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // 3. BLOG / ARTICLE ROUTES
+    // 3. CATEGORIES ROUTES (DYNAMIC CATEGORY CREATION & MANAGEMENT)
+    if (segments[0] === 'categories') {
+      if (method === 'GET') {
+        return res.status(200).json({ categories: getBlogCategoriesData() });
+      }
+      if (method === 'POST') {
+        const { name } = body;
+        if (!name || !String(name).trim()) {
+          return res.status(400).json({ error: 'Category name is required.' });
+        }
+        const updated = addBlogCategoryData(String(name));
+        return res.status(201).json({ categories: updated, message: `Category '${name}' added successfully.` });
+      }
+      if (method === 'PUT') {
+        const { oldName, newName } = body;
+        if (!oldName || !newName) {
+          return res.status(400).json({ error: 'Both oldName and newName are required.' });
+        }
+        const updated = editBlogCategoryData(String(oldName), String(newName));
+        return res.status(200).json({ categories: updated, message: `Category renamed to '${newName}'.` });
+      }
+    }
+
+    // 4. BLOG / ARTICLE ROUTES
     if (segments[0] === 'blog') {
       if (segments.length === 1) {
         if (method === 'GET') {
@@ -155,6 +194,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ article: updated, message: `Article status updated to ${status}.` });
       }
 
+      if (segments.length === 3 && segments[2] === 'view' && method === 'POST') {
+        const articleId = segments[1];
+        const count = incrementArticleViewCount(articleId);
+        return res.status(200).json({ views_count: count });
+      }
+
       if (segments.length === 2) {
         const articleId = segments[1];
         if (method === 'GET') {
@@ -173,7 +218,80 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // 4. PROJECT ROUTES
+    // 5. COMMENTS & MODERATION ROUTES
+    if (segments[0] === 'comments') {
+      if (segments[1] === 'all' && method === 'GET') {
+        const allComments = getAllCommentsData();
+        return res.status(200).json({ comments: allComments });
+      }
+
+      if (segments[1] === 'ban' && method === 'POST') {
+        const { ip } = body;
+        if (!ip) return res.status(400).json({ error: 'IP address is required for ban.' });
+        banUserIpData(ip);
+        return res.status(200).json({ success: true, message: `IP ${ip} has been banned.` });
+      }
+
+      if (segments.length === 3 && segments[2] === 'like' && method === 'POST') {
+        const commentId = segments[1];
+        const likes = likeCommentData(commentId);
+        return res.status(200).json({ likes_count: likes });
+      }
+
+      if (segments.length === 3 && segments[2] === 'status' && (method === 'PATCH' || method === 'PUT')) {
+        const commentId = segments[1];
+        const { status } = body;
+        const updated = updateCommentStatusData(commentId, status);
+        return res.status(200).json({ comment: updated, message: `Comment status set to ${status}.` });
+      }
+
+      if (segments.length === 2 && method === 'DELETE') {
+        const commentId = segments[1];
+        deleteCommentData(commentId);
+        return res.status(200).json({ success: true, message: 'Comment deleted successfully.' });
+      }
+
+      if (segments.length === 1) {
+        if (method === 'GET') {
+          const articleId = req.query.article_id || req.query.articleId;
+          const isAdmin = req.query.admin === 'true';
+          if (!articleId) return res.status(400).json({ error: 'article_id query param is required.' });
+          const comments = getArticleCommentsData(articleId, isAdmin);
+          return res.status(200).json({ comments });
+        }
+
+        if (method === 'POST') {
+          if (isIpBanned(clientIp)) {
+            return res.status(403).json({ error: 'You are banned from commenting on this platform.' });
+          }
+
+          const { article_id, parent_id, author_name, content, is_admin_reply } = body;
+          if (!article_id || !author_name || !content) {
+            return res.status(400).json({ error: 'Article ID, Name, and Comment content are required.' });
+          }
+
+          // Strict Multilingual Profanity Moderation Check
+          if (containsProfanity(author_name) || containsProfanity(content)) {
+            return res.status(422).json({
+              error: 'Your comment or name contains inappropriate or restricted language in English, Kinyarwanda, or French. Please revise.'
+            });
+          }
+
+          const saved = saveCommentData({
+            article_id,
+            parent_id,
+            author_name,
+            content,
+            is_admin_reply,
+            user_ip: clientIp
+          });
+
+          return res.status(201).json({ comment: saved, message: 'Comment published successfully.' });
+        }
+      }
+    }
+
+    // 6. PROJECT ROUTES
     if (segments[0] === 'projects') {
       if (segments.length === 1) {
         if (method === 'GET') {
@@ -213,7 +331,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // 5. USER MANAGEMENT ROUTES
+    // 7. USER MANAGEMENT ROUTES
     if (segments[0] === 'users') {
       if (segments.length === 1) {
         if (method === 'GET') return res.status(200).json({ users: DEFAULT_USERS });
@@ -230,7 +348,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // 6. CONTACT & ANALYTICS ROUTES
+    // 8. CONTACT & ANALYTICS ROUTES
     if (segments[0] === 'contact' && method === 'POST') {
       const { name, email, subject, message } = body;
       if (!name || !email || !subject || !message) {

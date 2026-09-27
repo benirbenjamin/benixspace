@@ -2,14 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { SeoHead } from '../components/common/SeoHead';
 import { AdSenseUnit } from '../components/common/AdSenseUnit';
-import { fetchProjectBySlug } from '../services/api';
+import { fetchProjectBySlug, fetchProjects } from '../services/api';
 import { trackPageView, trackProjectClick } from '../analytics/tracker';
 import { Project } from '../types';
-import { ExternalLink, ArrowLeft, Layers, CheckCircle2, Monitor, AlertCircle } from 'lucide-react';
+import { ExternalLink, ArrowLeft, Layers, Monitor, AlertCircle, Sparkles, ArrowRight } from 'lucide-react';
 
 export const ProjectDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const [project, setProject] = useState<Project | null>(null);
+  const [relatedProjects, setRelatedProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showEmbed, setShowEmbed] = useState(false);
@@ -17,18 +18,25 @@ export const ProjectDetailPage: React.FC = () => {
 
   useEffect(() => {
     if (!slug) return;
-    async function loadProject() {
+    async function loadProjectData() {
+      setLoading(true);
       try {
         const data = await fetchProjectBySlug(slug as string);
         setProject(data);
         trackPageView(window.location.href, 'project', data.id);
+
+        // Fetch related platforms
+        const allProjects = await fetchProjects();
+        const related = allProjects.filter((p) => p.id !== data.id && p.slug !== data.slug).slice(0, 3);
+        setRelatedProjects(related);
       } catch (err: any) {
         setError('Project not found or invalid URL.');
       } finally {
         setLoading(false);
       }
     }
-    loadProject();
+    loadProjectData();
+    window.scrollTo(0, 0);
   }, [slug]);
 
   if (loading) {
@@ -65,7 +73,6 @@ export const ProjectDetailPage: React.FC = () => {
     window.open(project.url, '_blank', 'noopener,noreferrer');
   };
 
-  // Schema.org SoftwareApplication JSON-LD
   const schemaJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
@@ -105,7 +112,7 @@ export const ProjectDetailPage: React.FC = () => {
           </div>
 
           {/* Header Banner */}
-          <div className="glass-card rounded-3xl p-8 border border-slate-200/80 shadow-xl space-y-6">
+          <div className="glass-card rounded-3xl p-8 border border-slate-200/80 shadow-xl space-y-6 bg-white">
             <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
               <div className="space-y-3 max-w-3xl">
                 <div className="flex items-center gap-3">
@@ -159,7 +166,7 @@ export const ProjectDetailPage: React.FC = () => {
 
           {/* Embedded Live Preview Modal/Container */}
           {showEmbed && (
-            <div className="glass-card rounded-3xl p-4 border border-slate-200 shadow-2xl space-y-3">
+            <div className="glass-card rounded-3xl p-4 border border-slate-200 shadow-2xl space-y-3 bg-white">
               <div className="flex items-center justify-between px-2 text-xs font-semibold text-slate-500">
                 <span>Interactive Live Preview: {project.url}</span>
                 <span className="text-sky-600">Secure Sandboxed View</span>
@@ -209,7 +216,7 @@ export const ProjectDetailPage: React.FC = () => {
           </div>
 
           {/* Detailed Description */}
-          <div className="glass-card rounded-3xl p-8 border border-slate-200/80 shadow-xl space-y-6">
+          <div className="glass-card rounded-3xl p-8 border border-slate-200/80 shadow-xl space-y-6 bg-white">
             <h2 className="text-2xl font-bold text-slate-900">About {project.name}</h2>
             <div className="prose max-w-none text-slate-600 leading-relaxed whitespace-pre-line">
               {project.full_description || project.short_description}
@@ -225,6 +232,53 @@ export const ProjectDetailPage: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* YOU MAY ALSO LIKE (RELATED PLATFORMS) */}
+          {relatedProjects.length > 0 && (
+            <div className="space-y-6 pt-6">
+              <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+                <Sparkles className="w-5 h-5 text-sky-600" />
+                <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">You May Also Like</h3>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                {relatedProjects.map((rel) => (
+                  <div key={rel.id} className="glass-card rounded-3xl overflow-hidden border border-slate-200 shadow-md hover:shadow-xl transition-all group bg-white flex flex-col justify-between">
+                    <div>
+                      <div className="h-44 overflow-hidden bg-slate-900">
+                        <img
+                          src={rel.image_url || 'https://i.postimg.cc/85zP6mK2/benix-tv-cover.jpg'}
+                          alt={rel.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      </div>
+                      <div className="p-5 space-y-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-100">
+                          {rel.category}
+                        </span>
+                        <h4 className="font-extrabold text-slate-900 text-lg group-hover:text-sky-600 transition-colors">
+                          <Link to={`/projects/${rel.slug}`}>{rel.name}</Link>
+                        </h4>
+                        <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed">
+                          {rel.short_description}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-5 pt-0">
+                      <Link
+                        to={`/projects/${rel.slug}`}
+                        className="inline-flex items-center gap-1.5 text-sky-600 font-bold text-xs hover:text-sky-700"
+                      >
+                        <span>View Platform Details</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
         </div>
       </div>

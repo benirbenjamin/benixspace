@@ -33,8 +33,10 @@ export interface Article {
   category: string;
   tags?: string | string[];
   author_name: string;
-  status: 'published' | 'draft';
+  status: 'published' | 'draft' | 'pending_review';
   published_at?: string;
+  views_count?: number;
+  comments_count?: number;
   seo_title?: string;
   seo_description?: string;
   seo_keywords?: string;
@@ -42,6 +44,20 @@ export interface Article {
   og_image_url?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface ArticleComment {
+  id: string;
+  article_id: number;
+  parent_id?: string | null;
+  author_name: string;
+  content: string;
+  likes_count: number;
+  status: 'approved' | 'hidden' | 'flagged';
+  is_admin_reply?: boolean;
+  user_ip?: string;
+  created_at: string;
+  replies?: ArticleComment[];
 }
 
 export interface Category {

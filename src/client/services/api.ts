@@ -1,4 +1,4 @@
-import type { Project, Article, Category, CompanySettings, SocialLink, User } from '../types';
+import type { Project, Article, Category, CompanySettings, SocialLink, User, ArticleComment } from '../types';
 
 export function getAuthToken(): string | null {
   return localStorage.getItem('benix_admin_token');
@@ -533,3 +533,160 @@ export async function updateArticleStatus(id: number, status: 'published' | 'pen
 
   return remote || { success: true, message: `Article status updated to ${status}.` };
 }
+
+// ================= DYNAMIC CATEGORIES API ================= //
+
+const INITIAL_CATEGORIES = ['Technology', 'Software Development', 'Digital Marketing & SEO', 'NebeluRw News'];
+
+export async function fetchCategories(): Promise<string[]> {
+  const remote = await tryRemoteFetch<{ categories: string[] }>('/api/categories');
+  if (remote?.categories && Array.isArray(remote.categories)) {
+    setLocalData('benix_blog_categories', remote.categories);
+    return remote.categories;
+  }
+  return getLocalData<string[]>('benix_blog_categories', INITIAL_CATEGORIES);
+}
+
+export async function addCategory(name: string): Promise<string[]> {
+  const token = getAuthToken();
+  const remote = await tryRemoteFetch<{ categories: string[] }>('/api/categories', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ name })
+  });
+
+  let current = getLocalData<string[]>('benix_blog_categories', INITIAL_CATEGORIES);
+  const trimmed = name.trim();
+  if (trimmed && !current.includes(trimmed)) {
+    current.push(trimmed);
+    setLocalData('benix_blog_categories', current);
+  }
+  return remote?.categories || current;
+}
+
+export async function editCategory(oldName: string, newName: string): Promise<string[]> {
+  const token = getAuthToken();
+  const remote = await tryRemoteFetch<{ categories: string[] }>('/api/categories', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ oldName, newName })
+  });
+
+  let current = getLocalData<string[]>('benix_blog_categories', INITIAL_CATEGORIES);
+  const idx = current.indexOf(oldName);
+  const trimmed = newName.trim();
+  if (idx !== -1 && trimmed) {
+    current[idx] = trimmed;
+    setLocalData('benix_blog_categories', current);
+  }
+  return remote?.categories || current;
+}
+
+// ================= COMMENTS & MODERATION API ================= //
+
+export async function fetchArticleComments(articleId: number | string, isAdmin: boolean = false): Promise<ArticleComment[]> {
+  const remote = await tryRemoteFetch<{ comments: ArticleComment[] }>(`/api/comments?article_id=${articleId}&admin=${isAdmin}`);
+  if (remote?.comments) return remote.comments;
+
+  const localComments = getLocalData<ArticleComment[]>('benix_comments', []);
+  return localComments.filter((c) => String(c.article_id) === String(articleId));
+}
+
+export async function fetchAllCommentsAdmin(): Promise<ArticleComment[]> {
+  const token = getAuthToken();
+  const remote = await tryRemoteFetch<{ comments: ArticleComment[] }>('/api/comments/all', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (remote?.comments) return remote.comments;
+  return getLocalData<ArticleComment[]>('benix_comments', []);
+}
+
+export async function postArticleComment(commentData: {
+  article_id: number;
+  parent_id?: string | null;
+  author_name: string;
+  content: string;
+  is_admin_reply?: boolean;
+}): Promise<ArticleComment> {
+  const res = await fetch('/api/comments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(commentData)
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to submit comment.');
+  }
+
+  const saved: ArticleComment = data.comment || {
+    id: `c_${Date.now()}`,
+    article_id: commentData.article_id,
+    parent_id: commentData.parent_id || null,
+    author_name: commentData.author_name,
+    content: commentData.content,
+    likes_count: 0,
+    status: 'approved',
+    is_admin_reply: commentData.is_admin_reply,
+    created_at: new Date().toISOString()
+  };
+
+  let local = getLocalData<ArticleComment[]>('benix_comments', []);
+  local.unshift(saved);
+  setLocalData('benix_comments', local);
+
+  return saved;
+}
+
+export async function likeArticleComment(commentId: string): Promise<number> {
+  const remote = await tryRemoteFetch<{ likes_count: number }>(`/api/comments/${commentId}/like`, {
+    method: 'POST'
+  });
+  return remote?.likes_count || 1;
+}
+
+export async function updateCommentStatusApi(commentId: string, status: 'approved' | 'hidden' | 'flagged') {
+  const token = getAuthToken();
+  const remote = await tryRemoteFetch(`/api/comments/${commentId}/status`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ status })
+  });
+  return remote || { success: true };
+}
+
+export async function deleteCommentApi(commentId: string) {
+  const token = getAuthToken();
+  const remote = await tryRemoteFetch(`/api/comments/${commentId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return remote || { success: true };
+}
+
+export async function banUserIpApi(ip: string) {
+  const token = getAuthToken();
+  const remote = await tryRemoteFetch('/api/comments/ban', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ ip })
+  });
+  return remote || { success: true };
+}
+
+export async function incrementArticleViews(slugOrId: number | string) {
+  tryRemoteFetch(`/api/blog/${slugOrId}/view`, { method: 'POST' });
+}
+

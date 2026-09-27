@@ -3,9 +3,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { RichTextEditor } from '../../components/admin/RichTextEditor';
 import { SeoAssistantPanel } from '../../components/admin/SeoAssistantPanel';
-import { fetchArticleBySlug, fetchArticles, saveArticle } from '../../services/api';
+import { fetchArticleBySlug, fetchArticles, saveArticle, fetchCategories, addCategory, editCategory } from '../../services/api';
 import { Article } from '../../types';
-import { ArrowLeft, Save, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Edit2, CheckCircle2, AlertCircle, X, FolderPlus } from 'lucide-react';
 
 export const AdminBlogEditPage: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
@@ -27,10 +27,34 @@ export const AdminBlogEditPage: React.FC = () => {
     seo_keywords: ''
   });
 
+  const [categories, setCategories] = useState<string[]>(['Technology', 'Software Development', 'Digital Marketing & SEO', 'NebeluRw News']);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Category Modal States
+  const [showAddCatModal, setShowAddCatModal] = useState(false);
+  const [newCatInput, setNewCatInput] = useState('');
+  const [catActionLoading, setCatActionLoading] = useState(false);
+
+  const [showEditCatModal, setShowEditCatModal] = useState(false);
+  const [editingCatOld, setEditingCatOld] = useState('');
+  const [editingCatNew, setEditingCatNew] = useState('');
+
+  useEffect(() => {
+    async function loadCats() {
+      try {
+        const catList = await fetchCategories();
+        if (catList && catList.length > 0) {
+          setCategories(catList);
+        }
+      } catch (err) {
+        console.error('Failed to load categories:', err);
+      }
+    }
+    loadCats();
+  }, []);
 
   useEffect(() => {
     if (isEdit && id) {
@@ -68,6 +92,49 @@ export const AdminBlogEditPage: React.FC = () => {
       slug: prev.slug || slugified,
       seo_title: prev.seo_title || newTitle
     }));
+  };
+
+  const handleCategorySelectChange = (val: string) => {
+    if (val === '__ADD_NEW__') {
+      setShowAddCatModal(true);
+    } else {
+      setFormData({ ...formData, category: val });
+    }
+  };
+
+  const handleAddNewCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCatInput.trim()) return;
+    setCatActionLoading(true);
+    try {
+      const updated = await addCategory(newCatInput.trim());
+      setCategories(updated);
+      setFormData((prev) => ({ ...prev, category: newCatInput.trim() }));
+      setNewCatInput('');
+      setShowAddCatModal(false);
+    } catch (err) {
+      alert('Failed to add new category.');
+    } finally {
+      setCatActionLoading(false);
+    }
+  };
+
+  const handleSaveEditCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCatNew.trim() || !editingCatOld) return;
+    setCatActionLoading(true);
+    try {
+      const updated = await editCategory(editingCatOld, editingCatNew.trim());
+      setCategories(updated);
+      if (formData.category === editingCatOld) {
+        setFormData((prev) => ({ ...prev, category: editingCatNew.trim() }));
+      }
+      setShowEditCatModal(false);
+    } catch (err) {
+      alert('Failed to edit category.');
+    } finally {
+      setCatActionLoading(false);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -150,7 +217,7 @@ export const AdminBlogEditPage: React.FC = () => {
         {/* Form & SEO Assistant 2-Column Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* Main Article Editor Form (8 cols) */}
+          {/* Main Article Editor Form (7 cols) */}
           <div className="lg:col-span-7 space-y-6">
             
             <div className="glass-card rounded-3xl p-6 border border-slate-200/80 shadow-md space-y-4">
@@ -178,23 +245,42 @@ export const AdminBlogEditPage: React.FC = () => {
                   />
                 </div>
 
+                {/* Dynamic Category Selector + Add / Edit options */}
                 <div className="space-y-1">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-600">Category</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-600">Category</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingCatOld(formData.category || categories[0]);
+                        setEditingCatNew(formData.category || categories[0]);
+                        setShowEditCatModal(true);
+                      }}
+                      className="text-[11px] font-semibold text-sky-600 hover:underline flex items-center gap-1"
+                    >
+                      <Edit2 className="w-3 h-3" /> Edit Name
+                    </button>
+                  </div>
+
                   <select
-                    value={formData.category || 'Technology'}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-slate-200 text-xs font-semibold"
+                    value={formData.category || categories[0]}
+                    onChange={(e) => handleCategorySelectChange(e.target.value)}
+                    className="w-full p-3 rounded-xl border border-slate-200 text-xs font-semibold bg-white"
                   >
-                    <option value="Technology">Technology</option>
-                    <option value="Software Development">Software Development</option>
-                    <option value="Digital Marketing & SEO">Digital Marketing & SEO</option>
-                    <option value="NebeluRw News">NebeluRw News</option>
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                    <option value="__ADD_NEW__" className="font-bold text-sky-600 bg-sky-50">
+                      + Add New Category...
+                    </option>
                   </select>
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-600">Featured Image URL (Postimages.org Supported)</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-600">Featured Image URL</label>
                 <input
                   type="url"
                   value={formData.featured_image_url || ''}
@@ -278,6 +364,113 @@ export const AdminBlogEditPage: React.FC = () => {
         </div>
 
       </div>
+
+      {/* MODAL: ADD NEW CATEGORY */}
+      {showAddCatModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 border border-slate-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FolderPlus className="w-5 h-5 text-sky-600" />
+                <h3 className="font-extrabold text-slate-900 text-lg">Add New Blog Category</h3>
+              </div>
+              <button onClick={() => setShowAddCatModal(false)} className="p-1 rounded-lg hover:bg-slate-100">
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddNewCategory} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase text-slate-600">Category Name</label>
+                <input
+                  type="text"
+                  value={newCatInput}
+                  onChange={(e) => setNewCatInput(e.target.value)}
+                  placeholder="e.g. Artificial Intelligence, Cloud Services..."
+                  className="w-full p-3 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-sky-500"
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddCatModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={catActionLoading}
+                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-md transition-all"
+                >
+                  {catActionLoading ? 'Saving...' : 'Add Category'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT EXISTING CATEGORY */}
+      {showEditCatModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 border border-slate-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Edit2 className="w-5 h-5 text-sky-600" />
+                <h3 className="font-extrabold text-slate-900 text-lg">Edit Category Name</h3>
+              </div>
+              <button onClick={() => setShowEditCatModal(false)} className="p-1 rounded-lg hover:bg-slate-100">
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditCategory} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase text-slate-600">Current Category</label>
+                <input
+                  type="text"
+                  value={editingCatOld}
+                  disabled
+                  className="w-full p-3 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase text-slate-600">New Category Name</label>
+                <input
+                  type="text"
+                  value={editingCatNew}
+                  onChange={(e) => setEditingCatNew(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-sky-500"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditCatModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={catActionLoading}
+                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-md transition-all"
+                >
+                  {catActionLoading ? 'Saving...' : 'Update Category'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </AdminLayout>
   );
 };
