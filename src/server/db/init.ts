@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import bcrypt from 'bcryptjs';
-import { query } from './db';
+import { query, hasValidDbConfig } from './db';
 import {
   INITIAL_COMPANY_DATA,
   INITIAL_SOCIAL_LINKS,
@@ -11,6 +11,10 @@ import {
 } from './seed-data';
 
 export async function initDb() {
+  if (!hasValidDbConfig && process.env.VERCEL) {
+    return;
+  }
+
   console.log('🚀 Starting BenixSpace Database Verification & Initialization...');
 
   try {
