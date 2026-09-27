@@ -4,8 +4,8 @@ import { adminLogin } from '../../services/api';
 import { Rocket, Lock, Mail, AlertCircle, ArrowRight } from 'lucide-react';
 
 export const AdminLoginPage: React.FC = () => {
-  const [email, setEmail] = useState('benirabok@gmail.com');
-  const [password, setPassword] = useState('BenixSpace2026!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -89,10 +89,6 @@ export const AdminLoginPage: React.FC = () => {
             )}
           </button>
         </form>
-
-        <div className="text-center pt-2 border-t border-slate-900">
-          <span className="text-[11px] text-slate-500">Default Admin: benirabok@gmail.com</span>
-        </div>
 
       </div>
     </div>

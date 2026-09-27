@@ -1,23 +1,29 @@
 import pg from 'pg';
 import dotenv from 'dotenv';
-import path from 'path';
 
 dotenv.config();
 
 const { Pool } = pg;
 
-// PostgreSQL Connection Pool
-const connectionString = process.env.DATABASE_URL;
+// Support standard DATABASE_URL or Vercel POSTGRES_URL / POSTGRES_URL_NON_POOLING
+const connectionString =
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.POSTGRES_URL_NON_POOLING;
+
+const isProduction = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
 
 export const pool = new Pool({
   connectionString: connectionString || 'postgresql://postgres:postgres@localhost:5432/benixspace',
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl: isProduction || (connectionString && !connectionString.includes('localhost'))
+    ? { rejectUnauthorized: false }
+    : false,
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
 
-// Generic Query Wrapper supporting PostgreSQL Pool with fallback
+// Generic Query Wrapper supporting PostgreSQL Pool
 export async function query<T = any>(text: string, params?: any[]): Promise<{ rows: T[]; rowCount: number }> {
   try {
     const start = Date.now();
@@ -28,8 +34,7 @@ export async function query<T = any>(text: string, params?: any[]): Promise<{ ro
     }
     return { rows: res.rows as T[], rowCount: res.rowCount || 0 };
   } catch (err: any) {
-    // If PostgreSQL isn't running locally during dev, log graceful database message
-    console.error('Database Query Exception:', err?.message || err);
+    console.error('Database Query Error:', err?.message || err);
     throw err;
   }
 }
