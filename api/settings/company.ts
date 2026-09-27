@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { INITIAL_COMPANY_DATA } from '../../src/server/db/seed-data';
+import { companyData, updateCompanyData } from '../_data';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -11,19 +11,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
 
-  if (req.method === 'GET') {
-    return res.status(200).json({ company: INITIAL_COMPANY_DATA });
-  }
-
-  if (req.method === 'PUT') {
-    try {
-      const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-      Object.assign(INITIAL_COMPANY_DATA, body);
-      return res.status(200).json({ success: true, message: 'Company settings updated successfully.', company: INITIAL_COMPANY_DATA });
-    } catch (err: any) {
-      return res.status(500).json({ error: err?.message || 'Failed to update settings.' });
+  try {
+    if (req.method === 'GET') {
+      return res.status(200).json({ company: companyData });
     }
-  }
 
-  return res.status(405).json({ error: 'Method not allowed' });
+    if (req.method === 'PUT') {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+      const updated = updateCompanyData(body);
+      return res.status(200).json({ success: true, message: 'Company settings updated successfully.', company: updated });
+    }
+
+    return res.status(405).json({ error: 'Method not allowed' });
+  } catch (err: any) {
+    console.error('Company settings API error:', err);
+    return res.status(500).json({ error: err?.message || 'Failed to process company settings request.' });
+  }
 }

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { INITIAL_PROJECTS } from '../../src/server/db/seed-data';
+import { projects, saveProjectData } from '../_data';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -14,69 +14,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
 
-  // GET /api/projects
-  if (req.method === 'GET') {
-    try {
+  try {
+    // GET /api/projects
+    if (req.method === 'GET') {
       const { category, featured, status } = req.query;
-      let projects = [...INITIAL_PROJECTS];
+      let result = [...projects];
 
       if (featured === 'true') {
-        projects = projects.filter((p) => p.featured);
+        result = result.filter((p) => p.featured);
       }
       if (category && category !== 'All') {
-        projects = projects.filter((p) => p.category === category);
+        result = result.filter((p) => p.category === category);
       }
       if (status && status !== 'all') {
-        projects = projects.filter((p) => p.status === status);
+        result = result.filter((p) => p.status === status);
       }
 
-      return res.status(200).json({ projects });
-    } catch (err: any) {
-      return res.status(200).json({ projects: INITIAL_PROJECTS });
+      return res.status(200).json({ projects: result });
     }
-  }
 
-  // POST /api/projects (Save Project)
-  if (req.method === 'POST') {
-    try {
+    // POST /api/projects (Save Project)
+    if (req.method === 'POST') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-      const {
-        name, slug, url, short_description, full_description, image_url,
-        category, tags, technologies, status, featured, embed_mode, sort_order
-      } = body;
+      const { name, slug, url, short_description } = body;
 
       if (!name || !slug || !url || !short_description) {
         return res.status(400).json({ error: 'Name, slug, URL, and short description are required.' });
       }
 
-      const newProject = {
-        id: Date.now(),
-        name: String(name).trim(),
-        slug: String(slug).trim(),
-        url: String(url).trim(),
-        short_description: String(short_description),
-        full_description: full_description || '',
-        image_url: image_url || 'https://i.postimg.cc/85zP6mK2/benix-tv-cover.jpg',
-        category: category || 'Web Application',
-        tags: typeof tags === 'string' ? tags : JSON.stringify(tags || []),
-        technologies: typeof technologies === 'string' ? technologies : JSON.stringify(technologies || []),
-        status: status || 'published',
-        featured: Boolean(featured),
-        embed_mode: embed_mode || 'both',
-        sort_order: Number(sort_order) || 0,
-        created_at: new Date().toISOString()
-      };
-
-      (INITIAL_PROJECTS as any[]).unshift(newProject);
-
+      const saved = saveProjectData(body);
       return res.status(200).json({
-        project: newProject,
+        project: saved,
         message: 'Project saved successfully.'
       });
-    } catch (err: any) {
-      return res.status(400).json({ error: err?.message || 'Failed to save project.' });
     }
-  }
 
-  return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ error: 'Method not allowed' });
+  } catch (err: any) {
+    console.error('Projects index API error:', err);
+    return res.status(500).json({ error: err?.message || 'Failed to process projects request.' });
+  }
 }
