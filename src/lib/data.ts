@@ -478,3 +478,124 @@ export function banUserIpData(ip: string) {
 export function isIpBanned(ip: string) {
   return bannedIps.includes(ip);
 }
+
+// ================= REAL LIVE VISITOR ANALYTICS ENGINE ================= //
+
+export let analyticsEvents: any[] = [];
+
+export function recordAnalyticsEvent(eventData: any) {
+  const newEvent = {
+    id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+    event_type: eventData.event_type || 'page_view',
+    page_url: eventData.page_url || '/',
+    page_type: eventData.page_type || 'general',
+    project_id: eventData.project_id ? Number(eventData.project_id) : null,
+    article_id: eventData.article_id ? Number(eventData.article_id) : null,
+    referrer: eventData.referrer || 'Direct',
+    user_agent: eventData.user_agent || '',
+    device_type: eventData.device_type || 'desktop',
+    browser: eventData.browser || 'Chrome',
+    os: eventData.os || 'Windows',
+    session_id: eventData.session_id || `sess_${Date.now()}`,
+    created_at: new Date().toISOString()
+  };
+
+  analyticsEvents.unshift(newEvent);
+
+  if (analyticsEvents.length > 5000) {
+    analyticsEvents = analyticsEvents.slice(0, 5000);
+  }
+
+  return newEvent;
+}
+
+export function getAnalyticsStatsData(range: string = '30d') {
+  const now = new Date();
+  let cutoffDate: Date | null = null;
+
+  if (range === 'today') {
+    cutoffDate = new Date();
+    cutoffDate.setHours(0, 0, 0, 0);
+  } else if (range === 'yesterday') {
+    cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 1);
+    cutoffDate.setHours(0, 0, 0, 0);
+  } else if (range === '7d') {
+    cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 7);
+  } else if (range === '30d') {
+    cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 30);
+  } else if (range === 'year') {
+    cutoffDate = new Date();
+    cutoffDate.setFullYear(cutoffDate.getFullYear() - 1);
+  }
+
+  const filtered = cutoffDate
+    ? analyticsEvents.filter((e) => new Date(e.created_at) >= cutoffDate!)
+    : analyticsEvents;
+
+  const pageViews = filtered.filter((e) => e.event_type === 'page_view');
+  const externalClicks = filtered.filter((e) => e.event_type === 'project_external_click');
+  const uniqueSessions = new Set(filtered.map((e) => e.session_id));
+
+  const projectClickCounts = new Map<number, number>();
+  externalClicks.forEach((e) => {
+    if (e.project_id) {
+      projectClickCounts.set(e.project_id, (projectClickCounts.get(e.project_id) || 0) + 1);
+    }
+  });
+
+  const top_projects = projects.map((p) => {
+    const clicks = projectClickCounts.get(p.id) || 0;
+    return { name: p.name, slug: p.slug, clicks };
+  }).sort((a, b) => b.clicks - a.clicks);
+
+  const sourceCounts = new Map<string, number>();
+  filtered.forEach((e) => {
+    let src = 'Direct / Bookmark';
+    if (e.referrer && e.referrer !== 'Direct' && !e.referrer.includes('benix.space') && !e.referrer.includes('localhost')) {
+      if (e.referrer.includes('google')) src = 'Google Search';
+      else if (e.referrer.includes('facebook')) src = 'Facebook';
+      else if (e.referrer.includes('instagram')) src = 'Instagram';
+      else if (e.referrer.includes('x.com') || e.referrer.includes('twitter')) src = 'X (Twitter)';
+      else if (e.referrer.includes('youtube')) src = 'YouTube';
+      else {
+        try {
+          src = new URL(e.referrer).hostname;
+        } catch {
+          src = 'Direct / Bookmark';
+        }
+      }
+    }
+    sourceCounts.set(src, (sourceCounts.get(src) || 0) + 1);
+  });
+
+  const sources = Array.from(sourceCounts.entries()).map(([source, count]) => ({
+    source,
+    count
+  })).sort((a, b) => b.count - a.count);
+
+  const deviceCounts = new Map<string, number>();
+  filtered.forEach((e) => {
+    const dev = e.device_type || 'desktop';
+    deviceCounts.set(dev, (deviceCounts.get(dev) || 0) + 1);
+  });
+
+  const devices = Array.from(deviceCounts.entries()).map(([device_type, count]) => ({
+    device_type,
+    count
+  })).sort((a, b) => b.count - a.count);
+
+  return {
+    overview: {
+      total_views: pageViews.length,
+      unique_visitors: uniqueSessions.size,
+      external_clicks: externalClicks.length
+    },
+    top_projects,
+    sources: sources.length > 0 ? sources : [{ source: 'Direct / Bookmark', count: filtered.length }],
+    devices: devices.length > 0 ? devices : [{ device_type: 'desktop', count: filtered.length }]
+  };
+}
+

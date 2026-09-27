@@ -22,7 +22,9 @@ import {
   deleteCommentData,
   banUserIpData,
   isIpBanned,
-  incrementArticleViewCount
+  incrementArticleViewCount,
+  recordAnalyticsEvent,
+  getAnalyticsStatsData
 } from '../src/lib/data.js';
 import { containsProfanity } from '../src/client/utils/moderation.js';
 
@@ -359,24 +361,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (segments[0] === 'analytics') {
       if (segments[1] === 'stats' && method === 'GET') {
-        return res.status(200).json({
-          overview: { total_views: 1420, unique_visitors: 890, external_clicks: 340 },
-          top_projects: [
-            { name: 'Benix Space TV', slug: 'benix-space-tv', clicks: 120 },
-            { name: 'Benix Games', slug: 'benix-games', clicks: 95 }
-          ],
-          sources: [
-            { source: 'Direct', count: 520 },
-            { source: 'Google Search', count: 310 }
-          ],
-          devices: [
-            { device_type: 'desktop', count: 620 },
-            { device_type: 'mobile', count: 380 }
-          ]
-        });
+        const range = String(req.query.range || '30d');
+        const stats = getAnalyticsStatsData(range);
+        return res.status(200).json(stats);
       }
 
       if (segments[1] === 'track' && method === 'POST') {
+        recordAnalyticsEvent(body);
         return res.status(200).json({ success: true });
       }
     }
