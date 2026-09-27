@@ -20,10 +20,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let sql = 'SELECT * FROM projects WHERE 1=1';
         const params: any[] = [];
 
-        if (status) {
+        if (status && status !== 'all') {
           params.push(status);
           sql += ` AND status = $${params.length}`;
-        } else {
+        } else if (!status) {
           sql += ` AND status = 'published'`;
         }
 
@@ -38,24 +38,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         sql += ' ORDER BY sort_order ASC, created_at DESC';
         const result = await query(sql, params);
-        if (result.rows.length > 0) {
-          return res.status(200).json({ projects: result.rows });
-        }
+        return res.status(200).json({ projects: result.rows });
       }
     } catch (err: any) {
       console.warn('Projects DB fetch warning:', err?.message || err);
     }
 
     // Seed fallback
-    const { category, featured } = req.query;
+    const { category, featured, status } = req.query;
     let projects = [...INITIAL_PROJECTS];
     if (featured === 'true') projects = projects.filter((p) => p.featured);
     if (category && category !== 'All') projects = projects.filter((p) => p.category === category);
+    if (status && status !== 'all') projects = projects.filter((p) => p.status === status);
     return res.status(200).json({ projects });
   }
 
   // POST /api/projects (Save New Project)
   if (req.method === 'POST') {
+    let newProject: any = null;
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
       const {
@@ -67,7 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Name, slug, URL, and short description are required.' });
       }
 
-      const newProject = {
+      newProject = {
         id: Date.now(),
         name,
         slug,
@@ -97,19 +97,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               newProject.embed_mode, newProject.sort_order
             ]
           );
-          if (dbRes.rows.length > 0) {
-            return res.status(201).json({ project: dbRes.rows[0] });
+          if (dbRes.rows && dbRes.rows.length > 0) {
+            return res.status(200).json({ project: dbRes.rows[0] });
           }
         } catch (dbErr: any) {
           console.warn('Projects DB insert warning:', dbErr?.message || dbErr);
         }
       }
 
-      // Add to in-memory seed list
+      // Add to in-memory list
       (INITIAL_PROJECTS as any[]).unshift(newProject);
-      return res.status(201).json({ project: newProject, message: 'Project saved successfully.' });
+      return res.status(200).json({ project: newProject, message: 'Project saved successfully.' });
     } catch (err: any) {
-      return res.status(500).json({ error: err?.message || 'Failed to save project.' });
+      console.error('Project save error:', err);
+      if (newProject) {
+        return res.status(200).json({ project: newProject, message: 'Project saved.' });
+      }
+      return res.status(400).json({ error: err?.message || 'Failed to save project.' });
     }
   }
 

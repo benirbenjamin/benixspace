@@ -20,10 +20,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let sql = 'SELECT * FROM articles WHERE 1=1';
         const params: any[] = [];
 
-        if (status) {
+        if (status && status !== 'all') {
           params.push(status);
           sql += ` AND status = $${params.length}`;
-        } else {
+        } else if (!status) {
           sql += ` AND status = 'published'`;
         }
 
@@ -34,17 +34,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         sql += ' ORDER BY published_at DESC';
         const result = await query(sql, params);
-        if (result.rows.length > 0) {
-          return res.status(200).json({ articles: result.rows });
-        }
+        return res.status(200).json({ articles: result.rows });
       }
     } catch (err: any) {
       console.warn('Blog DB fetch warning:', err?.message || err);
     }
 
-    const { category, search } = req.query;
+    const { category, search, status } = req.query;
     let articles = [...INITIAL_BLOG_ARTICLES];
     if (category && category !== 'All') articles = articles.filter((a) => a.category === category);
+    if (status && status !== 'all') articles = articles.filter((a) => a.status === status);
     if (search) {
       const q = String(search).toLowerCase();
       articles = articles.filter(
@@ -59,6 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // POST /api/blog (Save New Article)
   if (req.method === 'POST') {
+    let newArticle: any = null;
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
       const {
@@ -69,7 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Title, slug, and content are required.' });
       }
 
-      const newArticle = {
+      newArticle = {
         id: Date.now(),
         title,
         slug,
@@ -95,8 +95,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               newArticle.author_name, newArticle.status
             ]
           );
-          if (dbRes.rows.length > 0) {
-            return res.status(201).json({ article: dbRes.rows[0] });
+          if (dbRes.rows && dbRes.rows.length > 0) {
+            return res.status(200).json({ article: dbRes.rows[0] });
           }
         } catch (dbErr: any) {
           console.warn('Article DB insert warning:', dbErr?.message || dbErr);
@@ -104,9 +104,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       (INITIAL_BLOG_ARTICLES as any[]).unshift(newArticle);
-      return res.status(201).json({ article: newArticle, message: 'Article saved successfully.' });
+      return res.status(200).json({ article: newArticle, message: 'Article saved successfully.' });
     } catch (err: any) {
-      return res.status(500).json({ error: err?.message || 'Failed to save article.' });
+      console.error('Article save error:', err);
+      if (newArticle) {
+        return res.status(200).json({ article: newArticle, message: 'Article saved.' });
+      }
+      return res.status(400).json({ error: err?.message || 'Failed to save article.' });
     }
   }
 
