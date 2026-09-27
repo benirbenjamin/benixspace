@@ -1,4 +1,4 @@
-import { Project, Article, Category, CompanySettings, SocialLink } from '../types';
+import type { Project, Article, Category, CompanySettings, SocialLink } from '../types';
 
 export function getAuthToken(): string | null {
   return localStorage.getItem('benix_admin_token');
@@ -12,6 +12,43 @@ export function removeAuthToken() {
   localStorage.removeItem('benix_admin_token');
 }
 
+/**
+ * Robust fetch wrapper that gracefully handles both JSON responses and non-JSON (HTML/error) pages.
+ * Prevents "Unexpected token 'A', "A server e"... is not valid JSON" errors across the application.
+ */
+async function safeFetchJson<T = any>(url: string, options?: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(url, options);
+  } catch (err: any) {
+    throw new Error(`Network error: ${err?.message || 'Failed to communicate with server'}`);
+  }
+
+  const contentType = res.headers.get('content-type') || '';
+  let data: any = {};
+
+  if (contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+  } else {
+    // Response is text/html (e.g. 500 error page or SPA index.html rewrite fallback)
+    if (!res.ok) {
+      throw new Error(`Server returned error (${res.status}): ${res.statusText || 'Error processing request'}`);
+    }
+    // If request succeeded but response is HTML instead of JSON
+    throw new Error('API endpoint returned HTML instead of expected JSON payload.');
+  }
+
+  if (!res.ok) {
+    throw new Error(data.error || data.message || `Request failed with status ${res.status}`);
+  }
+
+  return data as T;
+}
+
 export async function fetchProjects(params?: { category?: string; search?: string; featured?: boolean; status?: string }): Promise<Project[]> {
   const query = new URLSearchParams();
   if (params?.category) query.append('category', params.category);
@@ -19,16 +56,12 @@ export async function fetchProjects(params?: { category?: string; search?: strin
   if (params?.featured) query.append('featured', 'true');
   if (params?.status) query.append('status', params.status);
 
-  const res = await fetch(`/api/projects?${query.toString()}`);
-  if (!res.ok) throw new Error('Failed to fetch projects');
-  const data = await res.json();
+  const data = await safeFetchJson<{ projects: Project[] }>(`/api/projects?${query.toString()}`);
   return data.projects || [];
 }
 
 export async function fetchProjectBySlug(slug: string): Promise<Project> {
-  const res = await fetch(`/api/projects/${slug}`);
-  if (!res.ok) throw new Error('Project not found');
-  const data = await res.json();
+  const data = await safeFetchJson<{ project: Project }>(`/api/projects/${slug}`);
   return data.project;
 }
 
@@ -38,57 +71,46 @@ export async function fetchArticles(params?: { category?: string; search?: strin
   if (params?.search) query.append('search', params.search);
   if (params?.status) query.append('status', params.status);
 
-  const res = await fetch(`/api/blog?${query.toString()}`);
-  if (!res.ok) throw new Error('Failed to fetch articles');
-  const data = await res.json();
+  const data = await safeFetchJson<{ articles: Article[] }>(`/api/blog?${query.toString()}`);
   return data.articles || [];
 }
 
 export async function fetchArticleBySlug(slug: string): Promise<Article> {
-  const res = await fetch(`/api/blog/${slug}`);
-  if (!res.ok) throw new Error('Article not found');
-  const data = await res.json();
+  const data = await safeFetchJson<{ article: Article }>(`/api/blog/${slug}`);
   return data.article;
 }
 
 export async function fetchCompanySettings(): Promise<{ company: CompanySettings; social: SocialLink[] }> {
-  const res = await fetch('/api/settings');
-  if (!res.ok) throw new Error('Failed to fetch settings');
-  return res.json();
+  return safeFetchJson<{ company: CompanySettings; social: SocialLink[] }>('/api/settings');
 }
 
 export async function submitContactForm(formData: { name: string; email: string; subject: string; message: string }) {
-  const res = await fetch('/api/contact', {
+  return safeFetchJson('/api/contact', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(formData)
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Submission failed');
-  return data;
 }
 
 // Admin API Endpoints
 
 export async function adminLogin(email: string, password: string) {
-  const res = await fetch('/api/auth/login', {
+  const data = await safeFetchJson<{ token: string; user: any }>('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password })
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Login failed');
-  setAuthToken(data.token);
+  if (data.token) {
+    setAuthToken(data.token);
+  }
   return data;
 }
 
 export async function fetchAnalyticsStats(range: string = '30d') {
   const token = getAuthToken();
-  const res = await fetch(`/api/analytics/stats?range=${range}`, {
+  return safeFetchJson(`/api/analytics/stats?range=${range}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
-  if (!res.ok) throw new Error('Failed to fetch analytics');
-  return res.json();
 }
 
 export async function saveProject(projectData: Partial<Project>, isEdit: boolean = false) {
@@ -96,7 +118,7 @@ export async function saveProject(projectData: Partial<Project>, isEdit: boolean
   const url = isEdit ? `/api/projects/${projectData.id}` : '/api/projects';
   const method = isEdit ? 'PUT' : 'POST';
 
-  const res = await fetch(url, {
+  const data = await safeFetchJson<{ project: Project }>(url, {
     method,
     headers: {
       'Content-Type': 'application/json',
@@ -104,19 +126,15 @@ export async function saveProject(projectData: Partial<Project>, isEdit: boolean
     },
     body: JSON.stringify(projectData)
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to save project');
   return data.project;
 }
 
 export async function deleteProject(id: number) {
   const token = getAuthToken();
-  const res = await fetch(`/api/projects/${id}`, {
+  return safeFetchJson(`/api/projects/${id}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` }
   });
-  if (!res.ok) throw new Error('Failed to delete project');
-  return res.json();
 }
 
 export async function saveArticle(articleData: Partial<Article>, isEdit: boolean = false) {
@@ -124,7 +142,7 @@ export async function saveArticle(articleData: Partial<Article>, isEdit: boolean
   const url = isEdit ? `/api/blog/${articleData.id}` : '/api/blog';
   const method = isEdit ? 'PUT' : 'POST';
 
-  const res = await fetch(url, {
+  const data = await safeFetchJson<{ article: Article }>(url, {
     method,
     headers: {
       'Content-Type': 'application/json',
@@ -132,24 +150,20 @@ export async function saveArticle(articleData: Partial<Article>, isEdit: boolean
     },
     body: JSON.stringify(articleData)
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to save article');
   return data.article;
 }
 
 export async function deleteArticle(id: number) {
   const token = getAuthToken();
-  const res = await fetch(`/api/blog/${id}`, {
+  return safeFetchJson(`/api/blog/${id}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` }
   });
-  if (!res.ok) throw new Error('Failed to delete article');
-  return res.json();
 }
 
 export async function updateCompanySettings(settings: Partial<CompanySettings>) {
   const token = getAuthToken();
-  const res = await fetch('/api/settings/company', {
+  return safeFetchJson('/api/settings/company', {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -157,13 +171,11 @@ export async function updateCompanySettings(settings: Partial<CompanySettings>) 
     },
     body: JSON.stringify(settings)
   });
-  if (!res.ok) throw new Error('Failed to update company settings');
-  return res.json();
 }
 
 export async function updateAdminProfile(name: string, email: string) {
   const token = getAuthToken();
-  const res = await fetch('/api/auth/profile', {
+  return safeFetchJson('/api/auth/profile', {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -171,14 +183,11 @@ export async function updateAdminProfile(name: string, email: string) {
     },
     body: JSON.stringify({ name, email })
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to update profile');
-  return data;
 }
 
 export async function changeAdminPassword(currentPassword: string, newPassword: string) {
   const token = getAuthToken();
-  const res = await fetch('/api/auth/password', {
+  return safeFetchJson('/api/auth/password', {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -186,24 +195,19 @@ export async function changeAdminPassword(currentPassword: string, newPassword: 
     },
     body: JSON.stringify({ currentPassword, newPassword })
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to change password');
-  return data;
 }
 
 export async function fetchUsers() {
   const token = getAuthToken();
-  const res = await fetch('/api/users', {
+  const data = await safeFetchJson<{ users: any[] }>('/api/users', {
     headers: { Authorization: `Bearer ${token}` }
   });
-  if (!res.ok) throw new Error('Failed to fetch users');
-  const data = await res.json();
   return data.users || [];
 }
 
 export async function createUser(userData: { email: string; password: string; name: string; role: 'admin' | 'editor' }) {
   const token = getAuthToken();
-  const res = await fetch('/api/users', {
+  return safeFetchJson('/api/users', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -211,25 +215,19 @@ export async function createUser(userData: { email: string; password: string; na
     },
     body: JSON.stringify(userData)
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to create user');
-  return data;
 }
 
 export async function deleteUser(id: number) {
   const token = getAuthToken();
-  const res = await fetch(`/api/users/${id}`, {
+  return safeFetchJson(`/api/users/${id}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` }
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to delete user');
-  return data;
 }
 
 export async function updateArticleStatus(id: number, status: 'published' | 'pending_review' | 'draft') {
   const token = getAuthToken();
-  const res = await fetch(`/api/blog/${id}/status`, {
+  return safeFetchJson(`/api/blog/${id}/status`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -237,7 +235,4 @@ export async function updateArticleStatus(id: number, status: 'published' | 'pen
     },
     body: JSON.stringify({ status })
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to update article status');
-  return data;
 }
