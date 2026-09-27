@@ -33,24 +33,10 @@ export const AdminAnalyticsPage: React.FC = () => {
     loadStats(range);
   }, [range]);
 
-  const overview = stats?.overview || { total_views: 389, unique_visitors: 124, external_clicks: 76 };
-  const topProjects = stats?.top_projects || [
-    { name: 'Benix Space TV', clicks: 34 },
-    { name: 'Voxify Platform', clicks: 22 },
-    { name: 'Benix Radio', clicks: 12 },
-    { name: 'Easy Calc', clicks: 8 }
-  ];
-  const sources = stats?.sources || [
-    { source: 'Direct / Bookmark', count: 180 },
-    { source: 'Google Search', count: 110 },
-    { source: 'Facebook', count: 65 },
-    { source: 'Instagram', count: 34 }
-  ];
-  const devices = stats?.devices || [
-    { device_type: 'desktop', count: 245 },
-    { device_type: 'mobile', count: 130 },
-    { device_type: 'tablet', count: 14 }
-  ];
+  const overview = stats?.overview || { total_views: 0, unique_visitors: 0, external_clicks: 0 };
+  const topProjects = stats?.top_projects || [];
+  const sources = stats?.sources || [];
+  const devices = stats?.devices || [];
 
   return (
     <AdminLayout>

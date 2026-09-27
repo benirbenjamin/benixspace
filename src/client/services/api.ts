@@ -270,20 +270,11 @@ export async function fetchAnalyticsStats(range: string = '30d') {
   });
   if (remote) return remote;
 
-  return {
-    overview: { total_views: 1420, unique_visitors: 890, external_clicks: 340 },
-    top_projects: [
-      { name: 'Benix Space TV', slug: 'benix-space-tv', clicks: 120 },
-      { name: 'Benix Games', slug: 'benix-games', clicks: 95 }
-    ],
-    sources: [
-      { source: 'Direct', count: 520 },
-      { source: 'Google Search', count: 310 }
-    ],
-    devices: [
-      { device_type: 'desktop', count: 620 },
-      { device_type: 'mobile', count: 380 }
-    ]
+  return remote || {
+    overview: { total_views: 0, unique_visitors: 0, external_clicks: 0 },
+    top_projects: [],
+    sources: [],
+    devices: []
   };
 }
 

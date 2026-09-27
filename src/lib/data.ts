@@ -216,32 +216,7 @@ export let articles = [
   }
 ];
 
-export let articleComments: any[] = [
-  {
-    id: 'c1',
-    article_id: 1,
-    parent_id: null,
-    author_name: 'Jean-Luc Mugisha',
-    content: 'Great initiative by NebeluRw Co. Ltd! The platforms like Benix Space TV and Voxify are truly transforming digital media access in Rwanda.',
-    likes_count: 5,
-    status: 'approved',
-    is_admin_reply: false,
-    user_ip: '197.243.0.1',
-    created_at: new Date(Date.now() - 86400000 * 2).toISOString()
-  },
-  {
-    id: 'c2',
-    article_id: 1,
-    parent_id: 'c1',
-    author_name: 'Benir Benjamin (NebeluRw)',
-    content: 'Thank you Jean-Luc! We appreciate your support as we continue expanding our streaming and technology platforms.',
-    likes_count: 8,
-    status: 'approved',
-    is_admin_reply: true,
-    user_ip: '10.0.0.1',
-    created_at: new Date(Date.now() - 86400000).toISOString()
-  }
-];
+export let articleComments: any[] = [];
 
 export let bannedIps: string[] = [];
 

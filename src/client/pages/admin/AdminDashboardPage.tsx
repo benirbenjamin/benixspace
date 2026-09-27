@@ -34,22 +34,22 @@ export const AdminDashboardPage: React.FC = () => {
     loadDashboard();
   }, []);
 
-  const totalVisitors = stats?.overview?.unique_visitors || 124;
-  const totalViews = stats?.overview?.total_views || 389;
-  const projectClicks = stats?.overview?.external_clicks || 76;
+  const totalVisitors = stats?.overview?.unique_visitors || 0;
+  const totalViews = stats?.overview?.total_views || 0;
+  const projectClicks = stats?.overview?.external_clicks || 0;
 
   return (
     <AdminLayout>
       <div className="space-y-8">
         
         {/* Welcome Top Banner */}
-        <div className="glass-card rounded-3xl p-8 border border-slate-200/80 shadow-lg bg-gradient-to-r from-sky-600 via-sky-500 to-blue-700 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+        <div className="rounded-3xl p-8 border border-slate-800 shadow-xl bg-gradient-to-r from-slate-900 via-sky-950 to-slate-900 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-wider bg-white/20 px-3 py-1 rounded-full">
+            <span className="text-xs font-extrabold uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-500/30 px-3 py-1 rounded-full">
               System Overview
             </span>
-            <h1 className="text-3xl font-extrabold tracking-tight">Welcome back, Benir Benjamin 👋</h1>
-            <p className="text-sky-100 text-sm">
+            <h1 className="text-3xl font-extrabold tracking-tight text-white">Welcome back, Benir Benjamin 👋</h1>
+            <p className="text-slate-300 text-sm">
               BenixSpace Digital Ecosystem overview for NebeluRw Co. Ltd.
             </p>
           </div>

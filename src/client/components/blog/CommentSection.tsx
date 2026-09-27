@@ -12,8 +12,10 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ articleId }) => 
   const [comments, setComments] = useState<ArticleComment[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Form states for root comment
-  const [authorName, setAuthorName] = useState('');
+  // Form states for root comment with localStorage persistence
+  const [authorName, setAuthorName] = useState(() => {
+    return localStorage.getItem('benix_comment_author_name') || '';
+  });
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -21,9 +23,21 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ articleId }) => 
 
   // Inline reply states
   const [replyTargetId, setReplyTargetId] = useState<string | null>(null);
-  const [replyName, setReplyName] = useState('');
+  const [replyName, setReplyName] = useState(() => {
+    return localStorage.getItem('benix_comment_author_name') || '';
+  });
   const [replyContent, setReplyContent] = useState('');
   const [replySubmitting, setReplySubmitting] = useState(false);
+
+  const handleNameChange = (val: string) => {
+    setAuthorName(val);
+    localStorage.setItem('benix_comment_author_name', val);
+  };
+
+  const handleReplyNameChange = (val: string) => {
+    setReplyName(val);
+    localStorage.setItem('benix_comment_author_name', val);
+  };
 
   // Profanity detection warnings
   const nameHasProfanity = containsProfanity(authorName);
