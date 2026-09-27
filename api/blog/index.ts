@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { INITIAL_BLOG_ARTICLES } from '../../src/server/db/seed-data';
+import { query, hasValidDbConfig } from '../../src/server/db/db';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -11,23 +12,103 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
 
-  const { category, search } = req.query;
+  // GET /api/blog
+  if (req.method === 'GET') {
+    try {
+      if (hasValidDbConfig) {
+        const { category, search, status } = req.query;
+        let sql = 'SELECT * FROM articles WHERE 1=1';
+        const params: any[] = [];
 
-  let articles = [...INITIAL_BLOG_ARTICLES];
+        if (status) {
+          params.push(status);
+          sql += ` AND status = $${params.length}`;
+        } else {
+          sql += ` AND status = 'published'`;
+        }
 
-  if (category && category !== 'All') {
-    articles = articles.filter((a) => a.category === category);
+        if (category && category !== 'All') {
+          params.push(category);
+          sql += ` AND category = $${params.length}`;
+        }
+
+        sql += ' ORDER BY published_at DESC';
+        const result = await query(sql, params);
+        if (result.rows.length > 0) {
+          return res.status(200).json({ articles: result.rows });
+        }
+      }
+    } catch (err: any) {
+      console.warn('Blog DB fetch warning:', err?.message || err);
+    }
+
+    const { category, search } = req.query;
+    let articles = [...INITIAL_BLOG_ARTICLES];
+    if (category && category !== 'All') articles = articles.filter((a) => a.category === category);
+    if (search) {
+      const q = String(search).toLowerCase();
+      articles = articles.filter(
+        (a) =>
+          a.title.toLowerCase().includes(q) ||
+          a.summary.toLowerCase().includes(q) ||
+          a.content.toLowerCase().includes(q)
+      );
+    }
+    return res.status(200).json({ articles });
   }
 
-  if (search) {
-    const q = String(search).toLowerCase();
-    articles = articles.filter(
-      (a) =>
-        a.title.toLowerCase().includes(q) ||
-        a.summary.toLowerCase().includes(q) ||
-        a.content.toLowerCase().includes(q)
-    );
+  // POST /api/blog (Save New Article)
+  if (req.method === 'POST') {
+    try {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+      const {
+        title, slug, summary, content, featured_image_url, category, tags, author_name, status
+      } = body;
+
+      if (!title || !slug || !content) {
+        return res.status(400).json({ error: 'Title, slug, and content are required.' });
+      }
+
+      const newArticle = {
+        id: Date.now(),
+        title,
+        slug,
+        summary: summary || '',
+        content,
+        featured_image_url: featured_image_url || 'https://i.postimg.cc/85zP6mK2/benix-tv-cover.jpg',
+        category: category || 'Technology',
+        tags: typeof tags === 'string' ? tags : JSON.stringify(tags || []),
+        author_name: author_name || 'Benir Benjamin',
+        status: status || 'published',
+        published_at: new Date().toISOString(),
+        created_at: new Date().toISOString()
+      };
+
+      if (hasValidDbConfig) {
+        try {
+          const dbRes = await query(
+            `INSERT INTO articles (title, slug, summary, content, featured_image_url, category, tags, author_name, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+            [
+              newArticle.title, newArticle.slug, newArticle.summary, newArticle.content,
+              newArticle.featured_image_url, newArticle.category, newArticle.tags,
+              newArticle.author_name, newArticle.status
+            ]
+          );
+          if (dbRes.rows.length > 0) {
+            return res.status(201).json({ article: dbRes.rows[0] });
+          }
+        } catch (dbErr: any) {
+          console.warn('Article DB insert warning:', dbErr?.message || dbErr);
+        }
+      }
+
+      (INITIAL_BLOG_ARTICLES as any[]).unshift(newArticle);
+      return res.status(201).json({ article: newArticle, message: 'Article saved successfully.' });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Failed to save article.' });
+    }
   }
 
-  return res.status(200).json({ articles });
+  return res.status(405).json({ error: 'Method not allowed' });
 }
