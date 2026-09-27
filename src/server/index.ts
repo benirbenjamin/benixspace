@@ -28,7 +28,10 @@ initDb().catch((err) => console.error('Database Init Failed:', err));
 
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const email = body.email ? String(body.email).trim() : '';
+    const password = body.password ? String(body.password) : '';
+
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
@@ -37,7 +40,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     try {
       const userRes = await query('SELECT * FROM users WHERE email = $1', [email]);
-      if (userRes.rowCount > 0) {
+      if (userRes && userRes.rowCount > 0) {
         user = userRes.rows[0];
       }
     } catch (dbErr: any) {
@@ -45,10 +48,10 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const defaultEmail = process.env.DEFAULT_ADMIN_EMAIL || 'benirabok@gmail.com';
-    const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'BenixSpace2026!';
+    const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'BenixSpace2026!';
 
     if (!user) {
-      if (email.trim().toLowerCase() === defaultEmail.trim().toLowerCase() && password === defaultPassword) {
+      if (email.toLowerCase() === defaultEmail.toLowerCase() && password === defaultPassword) {
         const token = generateToken({ id: 1, email: defaultEmail, role: 'admin' });
         return res.json({
           token,
@@ -58,8 +61,22 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
-    const match = await comparePassword(password, user.password_hash);
+    let match = false;
+    try {
+      match = await comparePassword(password, user.password_hash);
+    } catch {
+      match = false;
+    }
+
     if (!match) {
+      // Check fallback password if user exists but hash compare failed
+      if (email.toLowerCase() === defaultEmail.toLowerCase() && password === defaultPassword) {
+        const token = generateToken({ id: user.id || 1, email: defaultEmail, role: user.role || 'admin' });
+        return res.json({
+          token,
+          user: { id: user.id || 1, email: defaultEmail, name: user.name || 'Benir Benjamin', role: user.role || 'admin' }
+        });
+      }
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
@@ -69,7 +86,8 @@ app.post('/api/auth/login', async (req, res) => {
       user: { id: user.id, email: user.email, name: user.name, role: user.role }
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Login failed.' });
+    console.error('Login Endpoint Exception:', err);
+    return res.status(500).json({ error: err?.message || 'Login failed.' });
   }
 });
 
