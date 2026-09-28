@@ -902,7 +902,7 @@ export async function recordAnalyticsEvent(eventData: any) {
       );
       analyticsEvents.unshift(res.rows[0]);
       if (analyticsEvents.length > 5000) analyticsEvents = analyticsEvents.slice(0, 5000);
-      return res.rows[0];
+      return sanitizeForJson(res.rows[0]);
     } catch (e) {
       console.warn('DB recordAnalyticsEvent failed:', e);
     }
@@ -916,7 +916,32 @@ export async function recordAnalyticsEvent(eventData: any) {
   };
   analyticsEvents.unshift(newEvent);
   if (analyticsEvents.length > 5000) analyticsEvents = analyticsEvents.slice(0, 5000);
-  return newEvent;
+  return sanitizeForJson(newEvent);
+}
+
+export function sanitizeForJson<T = any>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'bigint') return Number(obj) as any;
+  if (typeof obj === 'number' || typeof obj === 'string' || typeof obj === 'boolean') return obj;
+  if (obj instanceof Date) return obj.toISOString() as any;
+  if (Array.isArray(obj)) return obj.map(sanitizeForJson) as any;
+  if (typeof obj === 'object') {
+    const res: any = {};
+    for (const key of Object.keys(obj)) {
+      res[key] = sanitizeForJson((obj as any)[key]);
+    }
+    return res;
+  }
+  return obj;
+}
+
+export function parseNumber(val: any): number {
+  if (val === null || val === undefined) return 0;
+  if (typeof val === 'bigint') return Number(val);
+  if (typeof val === 'number') return Number.isNaN(val) ? 0 : val;
+  const str = String(val);
+  const parsed = parseInt(str, 10);
+  return Number.isNaN(parsed) ? 0 : parsed;
 }
 
 export async function getAnalyticsStatsData(range: string = '30d') {
@@ -997,9 +1022,9 @@ export async function getAnalyticsStatsData(range: string = '30d') {
          ORDER BY created_at DESC LIMIT 10`
       );
 
-      let totalViewsNum = parseInt(totalViews.rows[0]?.count || '0', 10);
-      let uniqueVisitorsNum = parseInt(uniqueVisitors.rows[0]?.count || '0', 10);
-      let externalClicksNum = parseInt(externalClicks.rows[0]?.count || '0', 10);
+      let totalViewsNum = parseNumber(totalViews.rows[0]?.count);
+      let uniqueVisitorsNum = parseNumber(uniqueVisitors.rows[0]?.count);
+      let externalClicksNum = parseNumber(externalClicks.rows[0]?.count);
 
       if (totalViewsNum === 0 && uniqueVisitorsNum === 0) {
         for (const evt of analyticsEvents) {
@@ -1030,9 +1055,9 @@ export async function getAnalyticsStatsData(range: string = '30d') {
         const br = await query(`SELECT browser, COUNT(*) as count FROM analytics_events WHERE ${dateFilter} GROUP BY browser ORDER BY count DESC`);
         const ra = await query(`SELECT id, event_type, page_url, device_type, browser, os, created_at FROM analytics_events WHERE ${dateFilter} ORDER BY created_at DESC LIMIT 10`);
 
-        totalViewsNum = parseInt(tv.rows[0]?.count || '0', 10);
-        uniqueVisitorsNum = parseInt(uv.rows[0]?.count || '0', 10);
-        externalClicksNum = parseInt(ec.rows[0]?.count || '0', 10);
+        totalViewsNum = parseNumber(tv.rows[0]?.count);
+        uniqueVisitorsNum = parseNumber(uv.rows[0]?.count);
+        externalClicksNum = parseNumber(ec.rows[0]?.count);
         topProjectsRes.rows = tp.rows;
         topArticlesRes.rows = ta.rows;
         sourcesRes.rows = sr.rows;
@@ -1045,7 +1070,7 @@ export async function getAnalyticsStatsData(range: string = '30d') {
       const avgViewsPerSession = uniqueVisitorsNum > 0 ? Number((totalViewsNum / uniqueVisitorsNum).toFixed(1)) : 0;
       const bounceRate = totalViewsNum > 0 ? Math.round(((totalViewsNum - uniqueVisitorsNum) / totalViewsNum) * 100) : 0;
 
-      return {
+      return sanitizeForJson({
         overview: {
           total_views: totalViewsNum,
           unique_visitors: uniqueVisitorsNum,
@@ -1053,14 +1078,14 @@ export async function getAnalyticsStatsData(range: string = '30d') {
           avg_views_per_session: avgViewsPerSession,
           bounce_rate: bounceRate
         },
-        top_projects: topProjectsRes.rows.map((r: any) => ({ ...r, clicks: parseInt(r.clicks, 10) })),
-        top_articles: topArticlesRes.rows.map((r: any) => ({ ...r, views: parseInt(r.views, 10) })),
-        sources: sourcesRes.rows.map((r: any) => ({ ...r, count: parseInt(r.count, 10) })),
-        pages: pagesRes.rows.map((r: any) => ({ ...r, count: parseInt(r.count, 10) })),
-        devices: devicesRes.rows.map((r: any) => ({ ...r, count: parseInt(r.count, 10) })),
-        browsers: browsersRes.rows.map((r: any) => ({ ...r, count: parseInt(r.count, 10) })),
-        recent_activity: recentActivityRes.rows
-      };
+        top_projects: topProjectsRes.rows.map((r: any) => ({ ...r, clicks: parseNumber(r.clicks) })),
+        top_articles: topArticlesRes.rows.map((r: any) => ({ ...r, views: parseNumber(r.views) })),
+        sources: sourcesRes.rows.map((r: any) => ({ ...r, count: parseNumber(r.count) })),
+        pages: pagesRes.rows.map((r: any) => ({ ...r, count: parseNumber(r.count) })),
+        devices: devicesRes.rows.map((r: any) => ({ ...r, count: parseNumber(r.count) })),
+        browsers: browsersRes.rows.map((r: any) => ({ ...r, count: parseNumber(r.count) })),
+        recent_activity: recentActivityRes.rows.map((r: any) => sanitizeForJson(r))
+      });
     } catch (e) {
       console.warn('DB getAnalyticsStatsData failed, falling back to memory:', e);
     }
@@ -1181,7 +1206,7 @@ export async function getAnalyticsStatsData(range: string = '30d') {
     browser: e.browser, os: e.os, created_at: e.created_at
   }));
 
-  return {
+  return sanitizeForJson({
     overview: {
       total_views: pageViews.length,
       unique_visitors: totalUniqueVisitors,
@@ -1196,5 +1221,5 @@ export async function getAnalyticsStatsData(range: string = '30d') {
     devices,
     browsers,
     recent_activity
-  };
+  });
 }

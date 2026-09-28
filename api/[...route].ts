@@ -23,7 +23,8 @@ import {
   isIpBanned,
   incrementArticleViewCount,
   recordAnalyticsEvent,
-  getAnalyticsStatsData
+  getAnalyticsStatsData,
+  sanitizeForJson
 } from '../src/lib/data.js';
 import { containsProfanity } from '../src/client/utils/moderation.js';
 
@@ -371,15 +372,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (segments[1] === 'stats' && method === 'GET') {
         const range = String(req.query.range || '30d');
         console.log(`[API Server] GET /api/analytics/stats range=${range} segments=`, segments);
-        const stats = await getAnalyticsStatsData(range);
-        console.log(`[API Server] Analytics stats overview:`, JSON.stringify(stats?.overview));
-        return res.status(200).json(stats);
+        try {
+          const rawStats = await getAnalyticsStatsData(range);
+          const stats = sanitizeForJson(rawStats);
+          console.log(`[API Server] Analytics stats overview:`, JSON.stringify(stats?.overview));
+          return res.status(200).json(stats);
+        } catch (err: any) {
+          console.error('[API Server] Error in getAnalyticsStatsData:', err);
+          return res.status(500).json({ error: err?.message || 'Failed to fetch analytics stats' });
+        }
       }
 
       if (segments[1] === 'track' && method === 'POST') {
         console.log(`[API Server] POST /api/analytics/track event=`, body.event_type, body.page_url);
-        const event = await recordAnalyticsEvent(body);
-        return res.status(200).json({ success: true, event });
+        try {
+          const rawEvent = await recordAnalyticsEvent(body);
+          const event = sanitizeForJson(rawEvent);
+          return res.status(200).json({ success: true, event });
+        } catch (err: any) {
+          console.error('[API Server] Error in recordAnalyticsEvent:', err);
+          return res.status(500).json({ error: err?.message || 'Failed to record analytics event' });
+        }
       }
     }
 
