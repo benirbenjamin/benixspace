@@ -277,6 +277,44 @@ export async function initDb() {
       console.log('✓ Initial Blog Articles Seeded.');
     }
 
+    // 8. Check & Seed Initial Analytics Baseline Events
+    const existingAnalytics = await query('SELECT id FROM analytics_events LIMIT 1');
+    if (existingAnalytics.rowCount === 0) {
+      const sampleEvents = [
+        { type: 'page_view', url: 'https://benix.space/', pType: 'home', dev: 'desktop', br: 'Chrome', os: 'Windows', ref: 'Google Search' },
+        { type: 'page_view', url: 'https://benix.space/projects', pType: 'projects', dev: 'mobile', br: 'Safari', os: 'iOS', ref: 'Direct' },
+        { type: 'page_view', url: 'https://benix.space/projects/benix-space-tv', pType: 'project_detail', projId: 1, dev: 'desktop', br: 'Chrome', os: 'Windows', ref: 'Google Search' },
+        { type: 'project_external_click', url: 'https://benix.space/projects', pType: 'project_click', projId: 1, dev: 'desktop', br: 'Chrome', os: 'Windows', ref: 'Direct' },
+        { type: 'project_external_click', url: 'https://benix.space/projects', pType: 'project_click', projId: 3, dev: 'mobile', br: 'Chrome', os: 'Android', ref: 'Google Search' },
+        { type: 'page_view', url: 'https://benix.space/blog', pType: 'blog', dev: 'desktop', br: 'Firefox', os: 'Windows', ref: 'Facebook' },
+        { type: 'page_view', url: 'https://benix.space/blog/building-modern-web-applications-rwanda-digital-ecosystem', pType: 'blog_detail', artId: 1, dev: 'desktop', br: 'Chrome', os: 'Windows', ref: 'X (Twitter)' },
+        { type: 'page_view', url: 'https://benix.space/services', pType: 'services', dev: 'tablet', br: 'Safari', os: 'iOS', ref: 'Direct' },
+        { type: 'page_view', url: 'https://benix.space/about', pType: 'about', dev: 'desktop', br: 'Edge', os: 'Windows', ref: 'Direct' },
+        { type: 'project_external_click', url: 'https://benix.space/', pType: 'project_click', projId: 2, dev: 'mobile', br: 'Safari', os: 'iOS', ref: 'Instagram' },
+      ];
+
+      for (let i = 0; i < 45; i++) {
+        const item = sampleEvents[i % sampleEvents.length];
+        const daysAgo = Math.floor(Math.random() * 28);
+        const hoursAgo = Math.floor(Math.random() * 23);
+        const minutesAgo = Math.floor(Math.random() * 59);
+        const createdAt = new Date(Date.now() - (daysAgo * 24 * 3600 * 1000 + hoursAgo * 3600 * 1000 + minutesAgo * 60 * 1000)).toISOString();
+        const sessId = `sess_seed_${(i % 12) + 1}`;
+
+        await query(
+          `INSERT INTO analytics_events 
+            (event_type, page_url, page_type, project_id, article_id, referrer, user_agent, device_type, browser, os, session_id, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [
+            item.type, item.url, item.pType, item.projId || null, item.artId || null,
+            item.ref, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', item.dev, item.br,
+            item.os, sessId, createdAt
+          ]
+        );
+      }
+      console.log('✓ Initial Baseline Analytics Events Seeded.');
+    }
+
     console.log('✨ BenixSpace Database Verification & Seeding Complete!');
   } catch (err: any) {
     console.error('⚠️ Database Initialization Error:', err?.message || err);

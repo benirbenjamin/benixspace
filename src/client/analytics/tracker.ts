@@ -1,3 +1,6 @@
+import React, { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+
 function getSessionId(): string {
   let sessionId = localStorage.getItem('benix_session_id');
   if (!sessionId) {
@@ -75,3 +78,27 @@ export function trackProjectClick(projectId: number, projectUrl: string) {
     // Silent catch
   }
 }
+
+export const RouteAnalyticsTracker: React.FC = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    // Skip tracking admin panel pages so admin browsing doesn't pollute visitor stats
+    if (location.pathname.startsWith('/admin')) {
+      return;
+    }
+
+    let pageType = 'general';
+    const path = location.pathname;
+    if (path === '/') pageType = 'home';
+    else if (path.startsWith('/projects')) pageType = path.split('/').filter(Boolean).length > 1 ? 'project_detail' : 'projects';
+    else if (path.startsWith('/blog')) pageType = path.split('/').filter(Boolean).length > 1 ? 'blog_detail' : 'blog';
+    else if (path === '/services') pageType = 'services';
+    else if (path === '/about') pageType = 'about';
+    else if (path === '/contact') pageType = 'contact';
+
+    trackPageView(window.location.href, pageType);
+  }, [location.pathname, location.search]);
+
+  return null;
+};

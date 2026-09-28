@@ -144,7 +144,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                 <Compass className="w-4 h-4" />
               </div>
             </div>
-            <p className="text-3xl font-black text-slate-900">{overview.bounce_rate}%</p>
+            <p className="text-3xl font-black text-slate-900">{overview.bounce_rate ?? 0}%</p>
             <span className="text-[11px] font-semibold text-slate-400 block">Single-Page Visits</span>
           </div>
 

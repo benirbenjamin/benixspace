@@ -264,17 +264,29 @@ export async function adminLogin(email: string, password: string) {
 }
 
 export async function fetchAnalyticsStats(range: string = '30d') {
-  const token = getAuthToken();
-  const remote = await tryRemoteFetch(`/api/analytics/stats?range=${range}`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  if (remote) return remote;
+  try {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  return remote || {
-    overview: { total_views: 0, unique_visitors: 0, external_clicks: 0 },
+    const res = await fetch(`/api/analytics/stats?range=${range}`, { headers });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.overview) return data;
+    }
+  } catch (err) {
+    console.error('Failed to fetch analytics stats from server:', err);
+  }
+
+  return {
+    overview: { total_views: 0, unique_visitors: 0, external_clicks: 0, avg_views_per_session: 0, bounce_rate: 0 },
     top_projects: [],
+    top_articles: [],
     sources: [],
-    devices: []
+    pages: [],
+    devices: [],
+    browsers: [],
+    recent_activity: []
   };
 }
 

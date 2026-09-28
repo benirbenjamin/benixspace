@@ -30,6 +30,8 @@ import { AdminProfilePage } from './client/pages/admin/AdminProfilePage';
 import { AdminUsersPage } from './client/pages/admin/AdminUsersPage';
 import { getAuthToken } from './client/services/api';
 
+import { RouteAnalyticsTracker } from './client/analytics/tracker';
+
 const ProtectedAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const token = getAuthToken();
   if (!token) {
@@ -42,6 +44,7 @@ export const App: React.FC = () => {
   return (
     <HelmetProvider>
       <Router>
+        <RouteAnalyticsTracker />
         <Routes>
           
           {/* Admin Routes (No default Navbar/Footer) */}
