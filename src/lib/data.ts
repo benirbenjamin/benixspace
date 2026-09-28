@@ -177,7 +177,43 @@ export let articles: any[] = [
 
 export let articleComments: any[] = [];
 export let bannedIps: string[] = [];
-export let analyticsEvents: any[] = [];
+
+const sampleEventTemplates = [
+  { type: 'page_view', url: 'https://benix.space/', pType: 'home', dev: 'desktop', br: 'Chrome', os: 'Windows', ref: 'Google Search' },
+  { type: 'page_view', url: 'https://benix.space/projects', pType: 'projects', dev: 'mobile', br: 'Safari', os: 'iOS', ref: 'Direct' },
+  { type: 'page_view', url: 'https://benix.space/projects/benix-space-tv', pType: 'project_detail', projId: 1, dev: 'desktop', br: 'Chrome', os: 'Windows', ref: 'Google Search' },
+  { type: 'project_external_click', url: 'https://benix.space/projects', pType: 'project_click', projId: 1, dev: 'desktop', br: 'Chrome', os: 'Windows', ref: 'Direct' },
+  { type: 'project_external_click', url: 'https://benix.space/projects', pType: 'project_click', projId: 3, dev: 'mobile', br: 'Chrome', os: 'Android', ref: 'Google Search' },
+  { type: 'page_view', url: 'https://benix.space/blog', pType: 'blog', dev: 'desktop', br: 'Firefox', os: 'Windows', ref: 'Facebook' },
+  { type: 'page_view', url: 'https://benix.space/blog/building-modern-web-applications-rwanda-digital-ecosystem', pType: 'blog_detail', artId: 1, dev: 'desktop', br: 'Chrome', os: 'Windows', ref: 'X (Twitter)' },
+  { type: 'page_view', url: 'https://benix.space/services', pType: 'services', dev: 'tablet', br: 'Safari', os: 'iOS', ref: 'Direct' },
+  { type: 'page_view', url: 'https://benix.space/about', pType: 'about', dev: 'desktop', br: 'Edge', os: 'Windows', ref: 'Direct' },
+  { type: 'project_external_click', url: 'https://benix.space/', pType: 'project_click', projId: 2, dev: 'mobile', br: 'Safari', os: 'iOS', ref: 'Instagram' },
+  { type: 'page_view', url: 'https://benix.space/contact', pType: 'contact', dev: 'desktop', br: 'Chrome', os: 'Windows', ref: 'Google Search' }
+];
+
+export let analyticsEvents: any[] = Array.from({ length: 60 }).map((_, i) => {
+  const item = sampleEventTemplates[i % sampleEventTemplates.length];
+  const daysAgo = Math.floor(i / 2);
+  const hoursAgo = (i * 3) % 24;
+  const minutesAgo = (i * 17) % 60;
+  const createdAt = new Date(Date.now() - (daysAgo * 24 * 3600 * 1000 + hoursAgo * 3600 * 1000 + minutesAgo * 60 * 1000)).toISOString();
+  return {
+    id: `evt_seed_${i + 1}`,
+    event_type: item.type,
+    page_url: item.url,
+    page_type: item.pType,
+    project_id: item.projId || null,
+    article_id: item.artId || null,
+    referrer: item.ref,
+    user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    device_type: item.dev,
+    browser: item.br,
+    os: item.os,
+    session_id: `sess_visitor_${(i % 15) + 1}`,
+    created_at: createdAt
+  };
+});
 
 let isInitialized = false;
 export async function ensureDbInitialized() {
