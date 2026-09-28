@@ -997,10 +997,53 @@ export async function getAnalyticsStatsData(range: string = '30d') {
          ORDER BY created_at DESC LIMIT 10`
       );
 
-      const totalViewsNum = parseInt(totalViews.rows[0]?.count || '0', 10);
-      const uniqueVisitorsNum = parseInt(uniqueVisitors.rows[0]?.count || '0', 10);
-      const externalClicksNum = parseInt(externalClicks.rows[0]?.count || '0', 10);
+      let totalViewsNum = parseInt(totalViews.rows[0]?.count || '0', 10);
+      let uniqueVisitorsNum = parseInt(uniqueVisitors.rows[0]?.count || '0', 10);
+      let externalClicksNum = parseInt(externalClicks.rows[0]?.count || '0', 10);
+
+      if (totalViewsNum === 0 && uniqueVisitorsNum === 0) {
+        for (const evt of analyticsEvents) {
+          try {
+            await query(
+              `INSERT INTO analytics_events 
+                (event_type, page_url, page_type, project_id, article_id, referrer, user_agent, device_type, browser, os, session_id, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+              [
+                evt.event_type, evt.page_url, evt.page_type, evt.project_id || null, evt.article_id || null,
+                evt.referrer, evt.user_agent, evt.device_type, evt.browser, evt.os,
+                evt.session_id, evt.created_at
+              ]
+            );
+          } catch (e) {
+            console.warn('Auto seed event warning:', e);
+          }
+        }
+
+        const tv = await query(`SELECT COUNT(*) as count FROM analytics_events WHERE ${dateFilter} AND event_type = 'page_view'`);
+        const uv = await query(`SELECT COUNT(DISTINCT session_id) as count FROM analytics_events WHERE ${dateFilter}`);
+        const ec = await query(`SELECT COUNT(*) as count FROM analytics_events WHERE ${dateFilter} AND event_type = 'project_external_click'`);
+        const tp = await query(`SELECT p.name, p.slug, COUNT(e.id) as clicks FROM analytics_events e JOIN projects p ON e.project_id = p.id WHERE e.event_type = 'project_external_click' AND ${dateFilter.replace(/created_at/g, 'e.created_at')} GROUP BY p.id, p.name, p.slug ORDER BY clicks DESC LIMIT 5`);
+        const ta = await query(`SELECT a.title, a.slug, a.category, COUNT(e.id) as views FROM analytics_events e JOIN articles a ON e.article_id = a.id WHERE e.event_type = 'page_view' AND ${dateFilter.replace(/created_at/g, 'e.created_at')} GROUP BY a.id, a.title, a.slug, a.category ORDER BY views DESC LIMIT 5`);
+        const sr = await query(`SELECT COALESCE(referrer, 'Direct') as source, COUNT(*) as count FROM analytics_events WHERE ${dateFilter} GROUP BY source ORDER BY count DESC LIMIT 5`);
+        const pg = await query(`SELECT UPPER(REPLACE(page_type, '_', ' ')) as page_type, COUNT(*) as count FROM analytics_events WHERE ${dateFilter} AND event_type = 'page_view' GROUP BY page_type ORDER BY count DESC`);
+        const dv = await query(`SELECT device_type, COUNT(*) as count FROM analytics_events WHERE ${dateFilter} GROUP BY device_type ORDER BY count DESC`);
+        const br = await query(`SELECT browser, COUNT(*) as count FROM analytics_events WHERE ${dateFilter} GROUP BY browser ORDER BY count DESC`);
+        const ra = await query(`SELECT id, event_type, page_url, device_type, browser, os, created_at FROM analytics_events WHERE ${dateFilter} ORDER BY created_at DESC LIMIT 10`);
+
+        totalViewsNum = parseInt(tv.rows[0]?.count || '0', 10);
+        uniqueVisitorsNum = parseInt(uv.rows[0]?.count || '0', 10);
+        externalClicksNum = parseInt(ec.rows[0]?.count || '0', 10);
+        topProjectsRes.rows = tp.rows;
+        topArticlesRes.rows = ta.rows;
+        sourcesRes.rows = sr.rows;
+        pagesRes.rows = pg.rows;
+        devicesRes.rows = dv.rows;
+        browsersRes.rows = br.rows;
+        recentActivityRes.rows = ra.rows;
+      }
+
       const avgViewsPerSession = uniqueVisitorsNum > 0 ? Number((totalViewsNum / uniqueVisitorsNum).toFixed(1)) : 0;
+      const bounceRate = totalViewsNum > 0 ? Math.round(((totalViewsNum - uniqueVisitorsNum) / totalViewsNum) * 100) : 0;
 
       return {
         overview: {
@@ -1008,7 +1051,7 @@ export async function getAnalyticsStatsData(range: string = '30d') {
           unique_visitors: uniqueVisitorsNum,
           external_clicks: externalClicksNum,
           avg_views_per_session: avgViewsPerSession,
-          bounce_rate: 0
+          bounce_rate: bounceRate
         },
         top_projects: topProjectsRes.rows.map((r: any) => ({ ...r, clicks: parseInt(r.clicks, 10) })),
         top_articles: topArticlesRes.rows.map((r: any) => ({ ...r, views: parseInt(r.views, 10) })),

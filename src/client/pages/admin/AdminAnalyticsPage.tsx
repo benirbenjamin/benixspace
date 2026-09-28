@@ -23,10 +23,12 @@ export const AdminAnalyticsPage: React.FC = () => {
   const loadStats = async (selectedRange: string) => {
     setLoading(true);
     try {
+      console.log('[AdminAnalyticsPage] Loading stats for range:', selectedRange);
       const data = await fetchAnalyticsStats(selectedRange);
+      console.log('[AdminAnalyticsPage] Stats data state updated:', data);
       setStats(data);
     } catch (err) {
-      console.error('Failed to load analytics:', err);
+      console.error('[AdminAnalyticsPage] Failed to load analytics:', err);
     } finally {
       setLoading(false);
     }

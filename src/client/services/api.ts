@@ -269,10 +269,16 @@ export async function fetchAnalyticsStats(range: string = '30d') {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
+    console.log(`[Client API] fetchAnalyticsStats requesting range=${range}...`);
     const res = await fetch(`/api/analytics/stats?range=${range}`, { headers });
+    console.log(`[Client API] fetchAnalyticsStats response status=${res.status} ok=${res.ok}`);
     if (res.ok) {
       const data = await res.json();
+      console.log(`[Client API] fetchAnalyticsStats received data:`, data);
       if (data && data.overview) return data;
+    } else {
+      const errorText = await res.text();
+      console.warn(`[Client API] fetchAnalyticsStats non-200 response:`, errorText);
     }
   } catch (err) {
     console.error('Failed to fetch analytics stats from server:', err);

@@ -370,13 +370,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (segments[0] === 'analytics') {
       if (segments[1] === 'stats' && method === 'GET') {
         const range = String(req.query.range || '30d');
+        console.log(`[API Server] GET /api/analytics/stats range=${range} segments=`, segments);
         const stats = await getAnalyticsStatsData(range);
+        console.log(`[API Server] Analytics stats overview:`, JSON.stringify(stats?.overview));
         return res.status(200).json(stats);
       }
 
       if (segments[1] === 'track' && method === 'POST') {
-        await recordAnalyticsEvent(body);
-        return res.status(200).json({ success: true });
+        console.log(`[API Server] POST /api/analytics/track event=`, body.event_type, body.page_url);
+        const event = await recordAnalyticsEvent(body);
+        return res.status(200).json({ success: true, event });
       }
     }
 
