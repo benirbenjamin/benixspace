@@ -60,13 +60,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let segments: string[] = [];
 
     if (Array.isArray(req.query.route)) {
-      segments = req.query.route.map(String).filter(Boolean);
+      segments = req.query.route.map(String).flatMap((s) => s.split('/')).filter(Boolean);
     } else if (typeof req.query.route === 'string' && req.query.route) {
-      segments = [req.query.route];
+      segments = req.query.route.split('/').filter(Boolean);
+    } else if (req.query['0']) {
+      segments = String(req.query['0']).split('/').filter(Boolean);
     }
 
     if (segments.length === 0 || segments[0] === 'api') {
-      const cleanPath = pathname.replace(/^\/api/, '').replace(/^\//, '');
+      const cleanPath = pathname.replace(/^\/api\/?/, '');
       segments = cleanPath.split('/').filter(Boolean);
     }
 
