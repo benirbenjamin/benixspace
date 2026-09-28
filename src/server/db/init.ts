@@ -135,6 +135,22 @@ export async function initDb() {
           sort_order INT DEFAULT 0,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS article_comments (
+          id VARCHAR(255) PRIMARY KEY,
+          article_id INT NOT NULL,
+          parent_id VARCHAR(255),
+          author_name VARCHAR(255) NOT NULL,
+          content TEXT NOT NULL,
+          likes_count INT DEFAULT 0,
+          status VARCHAR(50) DEFAULT 'approved',
+          is_admin_reply BOOLEAN DEFAULT false,
+          user_ip VARCHAR(100),
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS banned_ips (
+          ip VARCHAR(100) PRIMARY KEY,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
       `;
     }
 

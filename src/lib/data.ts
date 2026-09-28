@@ -1,3 +1,7 @@
+import { query, hasValidDbConfig } from '../server/db/db';
+import { initDb } from '../server/db/init';
+
+// Initial in-memory default fallbacks
 export let companyData = {
   company_name: 'NebeluRw Co. Ltd',
   company_description: 'NebeluRw Co. Ltd is a modern technology and digital services company developing digital platforms, web applications, streaming services, and professional media solutions.',
@@ -8,60 +12,15 @@ export let companyData = {
   phone: '0783987223',
   address: 'Kigali, Rwanda',
   services_json: JSON.stringify([
-    {
-      id: 'web-dev',
-      title: 'Software & Web Development',
-      description: 'Custom websites, web applications, business platforms, management systems, and utility applications.',
-      icon: 'Code'
-    },
-    {
-      id: 'seo-marketing',
-      title: 'Digital Marketing & SEO',
-      description: 'Search engine optimization, content strategy, social media marketing, and online brand promotion.',
-      icon: 'TrendingUp'
-    },
-    {
-      id: 'social-mgmt',
-      title: 'Social Media Management',
-      description: 'Comprehensive social media management, content publishing, promotional campaigns, and brand visibility.',
-      icon: 'Share2'
-    },
-    {
-      id: 'youtube',
-      title: 'YouTube Services',
-      description: 'Channel creation, video optimization, publishing strategies, and subscriber growth management.',
-      icon: 'Youtube'
-    },
-    {
-      id: 'audio-music',
-      title: 'Audio & Music Production',
-      description: 'Music recording, professional audio mixing, gospel & commercial music projects, and studio production.',
-      icon: 'Music'
-    },
-    {
-      id: 'video-prod',
-      title: 'Video Production',
-      description: 'High-quality promotional videos, social media video content, event coverage, and music videos.',
-      icon: 'Video'
-    },
-    {
-      id: 'music-dist',
-      title: 'Music Distribution',
-      description: 'Global music distribution to platforms like Spotify, Deezer, Boomplay, Apple Music, and YouTube Music.',
-      icon: 'Radio'
-    },
-    {
-      id: 'design-photo',
-      title: 'Photography & Graphic Design',
-      description: 'Event photography, promotional artwork, digital flyers, logo design, and corporate branding.',
-      icon: 'Camera'
-    },
-    {
-      id: 'instruments',
-      title: 'Musical Instruments Assistance',
-      description: 'Connecting customers with reliable vendors to source and purchase quality musical instruments.',
-      icon: 'Sliders'
-    }
+    { id: 'web-dev', title: 'Software & Web Development', description: 'Custom websites, web applications, business platforms, management systems, and utility applications.', icon: 'Code' },
+    { id: 'seo-marketing', title: 'Digital Marketing & SEO', description: 'Search engine optimization, content strategy, social media marketing, and online brand promotion.', icon: 'TrendingUp' },
+    { id: 'social-mgmt', title: 'Social Media Management', description: 'Comprehensive social media management, content publishing, promotional campaigns, and brand visibility.', icon: 'Share2' },
+    { id: 'youtube', title: 'YouTube Services', description: 'Channel creation, video optimization, publishing strategies, and subscriber growth management.', icon: 'Youtube' },
+    { id: 'audio-music', title: 'Audio & Music Production', description: 'Music recording, professional audio mixing, gospel & commercial music projects, and studio production.', icon: 'Music' },
+    { id: 'video-prod', title: 'Video Production', description: 'High-quality promotional videos, social media video content, event coverage, and music videos.', icon: 'Video' },
+    { id: 'music-dist', title: 'Music Distribution', description: 'Global music distribution to platforms like Spotify, Deezer, Boomplay, Apple Music, and YouTube Music.', icon: 'Radio' },
+    { id: 'design-photo', title: 'Photography & Graphic Design', description: 'Event photography, promotional artwork, digital flyers, logo design, and corporate branding.', icon: 'Camera' },
+    { id: 'instruments', title: 'Musical Instruments Assistance', description: 'Connecting customers with reliable vendors to source and purchase quality musical instruments.', icon: 'Sliders' }
   ])
 };
 
@@ -73,7 +32,7 @@ export const socialLinks = [
   { id: 5, platform: 'YouTube', handle: 'nebelurw', custom_url: 'https://youtube.com/@nebelurw', sort_order: 5 },
 ];
 
-export let projects = [
+export let projects: any[] = [
   {
     id: 1,
     name: 'Benix Space TV',
@@ -183,7 +142,7 @@ export let blogCategories: string[] = [
   'NebeluRw News'
 ];
 
-export let articles = [
+export let articles: any[] = [
   {
     id: 1,
     title: 'Building Modern Web Applications for Rwanda’s Digital Ecosystem',
@@ -217,15 +176,190 @@ export let articles = [
 ];
 
 export let articleComments: any[] = [];
-
 export let bannedIps: string[] = [];
+export let analyticsEvents: any[] = [];
 
-export function updateCompanyData(newData: any) {
+let isInitialized = false;
+export async function ensureDbInitialized() {
+  if (!isInitialized && hasValidDbConfig) {
+    try {
+      await initDb();
+      isInitialized = true;
+    } catch (e) {
+      console.warn('PostgreSQL auto-init warning:', e);
+    }
+  }
+}
+
+// ==================== COMPANY SETTINGS & SOCIAL ==================== //
+
+export async function getCompanyAndSocialData() {
+  await ensureDbInitialized();
+  if (hasValidDbConfig) {
+    try {
+      const companyRes = await query('SELECT * FROM company_settings LIMIT 1');
+      const socialRes = await query('SELECT * FROM social_links ORDER BY sort_order ASC');
+      const company = companyRes.rows[0] || companyData;
+      const social = socialRes.rows.length > 0 ? socialRes.rows : socialLinks;
+      companyData = { ...companyData, ...company };
+      return { company, social };
+    } catch (e) {
+      console.warn('DB settings query failed, falling back to memory:', e);
+    }
+  }
+  return { company: companyData, social: socialLinks };
+}
+
+export async function updateCompanyData(newData: any) {
+  await ensureDbInitialized();
   companyData = { ...companyData, ...newData };
+
+  if (hasValidDbConfig) {
+    try {
+      const existing = await query('SELECT id FROM company_settings LIMIT 1');
+      if (existing.rowCount > 0) {
+        await query(
+          `UPDATE company_settings SET 
+            company_name = $1, company_description = $2, history = $3, founder_name = $4,
+            founder_bio = $5, email = $6, phone = $7, address = $8, services_json = $9,
+            updated_at = CURRENT_TIMESTAMP`,
+          [
+            companyData.company_name, companyData.company_description, companyData.history,
+            companyData.founder_name, companyData.founder_bio, companyData.email,
+            companyData.phone, companyData.address, companyData.services_json
+          ]
+        );
+      } else {
+        await query(
+          `INSERT INTO company_settings (company_name, company_description, history, founder_name, founder_bio, email, phone, address, services_json)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [
+            companyData.company_name, companyData.company_description, companyData.history,
+            companyData.founder_name, companyData.founder_bio, companyData.email,
+            companyData.phone, companyData.address, companyData.services_json
+          ]
+        );
+      }
+    } catch (e) {
+      console.warn('DB updateCompanyData failed:', e);
+    }
+  }
+
   return companyData;
 }
 
-export function saveProjectData(projectData: any) {
+// ==================== PROJECTS DATA LAYER ==================== //
+
+export async function getProjectsData(filters?: { category?: string; search?: string; featured?: string; status?: string }) {
+  await ensureDbInitialized();
+  if (hasValidDbConfig) {
+    try {
+      let sql = 'SELECT * FROM projects WHERE 1=1';
+      const params: any[] = [];
+
+      if (filters?.status && filters.status !== 'all') {
+        params.push(filters.status);
+        sql += ` AND status = $${params.length}`;
+      }
+      if (filters?.category && filters.category !== 'All') {
+        params.push(filters.category);
+        sql += ` AND category = $${params.length}`;
+      }
+      if (filters?.featured === 'true') {
+        sql += ` AND featured = true`;
+      }
+      if (filters?.search) {
+        params.push(`%${filters.search}%`);
+        sql += ` AND (name ILIKE $${params.length} OR short_description ILIKE $${params.length} OR technologies ILIKE $${params.length})`;
+      }
+      sql += ' ORDER BY sort_order ASC, created_at DESC';
+
+      const res = await query(sql, params);
+      if (res.rows.length > 0 || !filters || Object.keys(filters).length === 0) {
+        projects = res.rows;
+        return res.rows;
+      }
+    } catch (e) {
+      console.warn('DB getProjectsData failed, falling back to memory:', e);
+    }
+  }
+
+  let result = [...projects];
+  if (filters?.status && filters.status !== 'all') result = result.filter((p) => p.status === filters.status);
+  if (filters?.category && filters.category !== 'All') result = result.filter((p) => p.category === filters.category);
+  if (filters?.featured === 'true') result = result.filter((p) => p.featured);
+  if (filters?.search) {
+    const q = filters.search.toLowerCase();
+    result = result.filter((p) => p.name.toLowerCase().includes(q) || p.short_description.toLowerCase().includes(q));
+  }
+  return result;
+}
+
+export async function saveProjectData(projectData: any) {
+  await ensureDbInitialized();
+  const name = projectData.name || 'New Project';
+  const slug = projectData.slug || `project-${Date.now()}`;
+  const url = projectData.url || 'https://benix.space';
+  const short_description = projectData.short_description || '';
+  const full_description = projectData.full_description || '';
+  const image_url = projectData.image_url || 'https://i.postimg.cc/85zP6mK2/benix-tv-cover.jpg';
+  const gallery_images = typeof projectData.gallery_images === 'string' ? projectData.gallery_images : JSON.stringify(projectData.gallery_images || []);
+  const category = projectData.category || 'Web Application';
+  const tags = typeof projectData.tags === 'string' ? projectData.tags : JSON.stringify(projectData.tags || []);
+  const technologies = typeof projectData.technologies === 'string' ? projectData.technologies : JSON.stringify(projectData.technologies || []);
+  const status = projectData.status || 'published';
+  const featured = Boolean(projectData.featured);
+  const embed_mode = projectData.embed_mode || 'both';
+  const sort_order = Number(projectData.sort_order) || 0;
+  const seo_title = projectData.seo_title || name;
+  const seo_description = projectData.seo_description || short_description;
+  const seo_keywords = projectData.seo_keywords || '';
+  const og_image_url = projectData.og_image_url || image_url;
+
+  if (hasValidDbConfig) {
+    try {
+      if (projectData.id) {
+        const res = await query(
+          `UPDATE projects SET 
+            name = $1, slug = $2, url = $3, short_description = $4, full_description = $5,
+            image_url = $6, gallery_images = $7, category = $8, tags = $9, technologies = $10,
+            status = $11, featured = $12, embed_mode = $13, sort_order = $14, seo_title = $15,
+            seo_description = $16, seo_keywords = $17, og_image_url = $18, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $19 OR slug = $2 RETURNING *`,
+          [
+            name, slug, url, short_description, full_description, image_url,
+            gallery_images, category, tags, technologies, status, featured,
+            embed_mode, sort_order, seo_title, seo_description, seo_keywords,
+            og_image_url, Number(projectData.id) || 0
+          ]
+        );
+        if (res.rowCount > 0) {
+          const idx = projects.findIndex((p) => p.id === res.rows[0].id);
+          if (idx !== -1) projects[idx] = res.rows[0];
+          else projects.unshift(res.rows[0]);
+          return res.rows[0];
+        }
+      }
+
+      const res = await query(
+        `INSERT INTO projects 
+          (name, slug, url, short_description, full_description, image_url, gallery_images, category, tags, technologies, status, featured, embed_mode, sort_order, seo_title, seo_description, seo_keywords, og_image_url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+         RETURNING *`,
+        [
+          name, slug, url, short_description, full_description, image_url,
+          gallery_images, category, tags, technologies, status, featured,
+          embed_mode, sort_order, seo_title, seo_description, seo_keywords, og_image_url
+        ]
+      );
+      projects.unshift(res.rows[0]);
+      return res.rows[0];
+    } catch (e) {
+      console.warn('DB saveProjectData failed, using memory:', e);
+    }
+  }
+
+  // Memory fallback
   if (projectData.id) {
     const idx = projects.findIndex((p) => p.id === Number(projectData.id) || p.slug === String(projectData.id));
     if (idx !== -1) {
@@ -234,62 +368,190 @@ export function saveProjectData(projectData: any) {
     }
   }
   const newProject = {
-    id: Date.now(),
-    name: projectData.name || 'New Project',
-    slug: projectData.slug || `project-${Date.now()}`,
-    url: projectData.url || 'https://benix.space',
-    short_description: projectData.short_description || '',
-    full_description: projectData.full_description || '',
-    image_url: projectData.image_url || 'https://i.postimg.cc/85zP6mK2/benix-tv-cover.jpg',
-    category: projectData.category || 'Web Application',
-    tags: typeof projectData.tags === 'string' ? projectData.tags : JSON.stringify(projectData.tags || []),
-    technologies: typeof projectData.technologies === 'string' ? projectData.technologies : JSON.stringify(projectData.technologies || []),
-    status: projectData.status || 'published',
-    featured: Boolean(projectData.featured),
-    embed_mode: projectData.embed_mode || 'both',
-    sort_order: Number(projectData.sort_order) || 0,
-    created_at: new Date().toISOString(),
-    ...projectData
+    id: Date.now(), name, slug, url, short_description, full_description, image_url,
+    gallery_images, category, tags, technologies, status, featured, embed_mode,
+    sort_order, seo_title, seo_description, seo_keywords, og_image_url,
+    created_at: new Date().toISOString()
   };
   projects.unshift(newProject);
   return newProject;
 }
 
-export function deleteProjectData(id: any) {
-  const idx = projects.findIndex((p) => String(p.id) === String(id));
-  if (idx !== -1) {
-    projects.splice(idx, 1);
+export async function deleteProjectData(id: any) {
+  await ensureDbInitialized();
+  if (hasValidDbConfig) {
+    try {
+      await query('DELETE FROM projects WHERE id = $1 OR slug = $2', [Number(id) || 0, String(id)]);
+    } catch (e) {
+      console.warn('DB deleteProjectData failed:', e);
+    }
   }
+  const idx = projects.findIndex((p) => String(p.id) === String(id) || p.slug === String(id));
+  if (idx !== -1) projects.splice(idx, 1);
   return true;
 }
 
-export function getBlogCategoriesData() {
-  return blogCategories;
-}
+// ==================== CATEGORIES DATA LAYER ==================== //
 
-export function addBlogCategoryData(name: string) {
-  const trimmed = String(name || '').trim();
-  if (trimmed && !blogCategories.includes(trimmed)) {
-    blogCategories.push(trimmed);
-  }
-  return blogCategories;
-}
-
-export function editBlogCategoryData(oldName: string, newName: string) {
-  const trimmed = String(newName || '').trim();
-  const idx = blogCategories.indexOf(oldName);
-  if (idx !== -1 && trimmed) {
-    blogCategories[idx] = trimmed;
-    articles.forEach((art) => {
-      if (art.category === oldName) {
-        art.category = trimmed;
+export async function getBlogCategoriesData() {
+  await ensureDbInitialized();
+  if (hasValidDbConfig) {
+    try {
+      const res = await query('SELECT name FROM categories ORDER BY name ASC');
+      if (res.rows.length > 0) {
+        blogCategories = res.rows.map((r: any) => r.name);
+        return blogCategories;
       }
-    });
+    } catch (e) {
+      console.warn('DB getBlogCategoriesData failed:', e);
+    }
   }
   return blogCategories;
 }
 
-export function saveArticleData(articleData: any) {
+export async function addBlogCategoryData(name: string) {
+  await ensureDbInitialized();
+  const trimmed = String(name || '').trim();
+  if (!trimmed) return blogCategories;
+
+  if (hasValidDbConfig) {
+    try {
+      const slug = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      await query('INSERT INTO categories (name, slug, type) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [trimmed, slug, 'general']);
+    } catch (e) {
+      console.warn('DB addBlogCategoryData failed:', e);
+    }
+  }
+
+  if (!blogCategories.includes(trimmed)) blogCategories.push(trimmed);
+  return blogCategories;
+}
+
+export async function editBlogCategoryData(oldName: string, newName: string) {
+  await ensureDbInitialized();
+  const trimmed = String(newName || '').trim();
+  if (!trimmed) return blogCategories;
+
+  if (hasValidDbConfig) {
+    try {
+      const slug = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      await query('UPDATE categories SET name = $1, slug = $2 WHERE name = $3', [trimmed, slug, oldName]);
+      await query('UPDATE articles SET category = $1 WHERE category = $2', [trimmed, oldName]);
+    } catch (e) {
+      console.warn('DB editBlogCategoryData failed:', e);
+    }
+  }
+
+  const idx = blogCategories.indexOf(oldName);
+  if (idx !== -1) blogCategories[idx] = trimmed;
+  articles.forEach((art) => {
+    if (art.category === oldName) art.category = trimmed;
+  });
+  return blogCategories;
+}
+
+// ==================== BLOG ARTICLES DATA LAYER ==================== //
+
+export async function getArticlesData(filters?: { category?: string; search?: string; status?: string }) {
+  await ensureDbInitialized();
+  if (hasValidDbConfig) {
+    try {
+      let sql = 'SELECT * FROM articles WHERE 1=1';
+      const params: any[] = [];
+
+      if (filters?.status && filters.status !== 'all') {
+        params.push(filters.status);
+        sql += ` AND status = $${params.length}`;
+      }
+      if (filters?.category && filters.category !== 'All') {
+        params.push(filters.category);
+        sql += ` AND category = $${params.length}`;
+      }
+      if (filters?.search) {
+        params.push(`%${filters.search}%`);
+        sql += ` AND (title ILIKE $${params.length} OR summary ILIKE $${params.length} OR content ILIKE $${params.length})`;
+      }
+      sql += ' ORDER BY published_at DESC, created_at DESC';
+
+      const res = await query(sql, params);
+      if (res.rows.length > 0 || !filters || Object.keys(filters).length === 0) {
+        articles = res.rows;
+        return res.rows;
+      }
+    } catch (e) {
+      console.warn('DB getArticlesData failed:', e);
+    }
+  }
+
+  let result = [...articles];
+  if (filters?.status && filters.status !== 'all') result = result.filter((a) => a.status === filters.status);
+  if (filters?.category && filters.category !== 'All') result = result.filter((a) => a.category === filters.category);
+  if (filters?.search) {
+    const q = filters.search.toLowerCase();
+    result = result.filter((a) => a.title.toLowerCase().includes(q) || a.summary.toLowerCase().includes(q));
+  }
+  return result;
+}
+
+export async function saveArticleData(articleData: any) {
+  await ensureDbInitialized();
+  const title = articleData.title || 'New Article';
+  const slug = articleData.slug || `article-${Date.now()}`;
+  const summary = articleData.summary || '';
+  const content = articleData.content || '';
+  const featured_image_url = articleData.featured_image_url || 'https://i.postimg.cc/Hnj1LYRT/online-banks.png';
+  const category = articleData.category || 'Technology';
+  const tags = typeof articleData.tags === 'string' ? articleData.tags : JSON.stringify(articleData.tags || []);
+  const author_name = articleData.author_name || 'Benir Benjamin';
+  const status = articleData.status || 'published';
+  const seo_title = articleData.seo_title || title;
+  const seo_description = articleData.seo_description || summary || title;
+  const seo_keywords = articleData.seo_keywords || '';
+  const canonical_url = articleData.canonical_url || '';
+  const og_image_url = articleData.og_image_url || featured_image_url;
+
+  if (hasValidDbConfig) {
+    try {
+      if (articleData.id) {
+        const res = await query(
+          `UPDATE articles SET 
+            title = $1, slug = $2, summary = $3, content = $4, featured_image_url = $5,
+            category = $6, tags = $7, author_name = $8, status = $9, seo_title = $10,
+            seo_description = $11, seo_keywords = $12, canonical_url = $13, og_image_url = $14,
+            updated_at = CURRENT_TIMESTAMP
+           WHERE id = $15 OR slug = $2 RETURNING *`,
+          [
+            title, slug, summary, content, featured_image_url, category, tags,
+            author_name, status, seo_title, seo_description, seo_keywords,
+            canonical_url, og_image_url, Number(articleData.id) || 0
+          ]
+        );
+        if (res.rowCount > 0) {
+          const idx = articles.findIndex((a) => a.id === res.rows[0].id);
+          if (idx !== -1) articles[idx] = res.rows[0];
+          else articles.unshift(res.rows[0]);
+          return res.rows[0];
+        }
+      }
+
+      const res = await query(
+        `INSERT INTO articles 
+          (title, slug, summary, content, featured_image_url, category, tags, author_name, status, seo_title, seo_description, seo_keywords, canonical_url, og_image_url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         RETURNING *`,
+        [
+          title, slug, summary, content, featured_image_url, category, tags,
+          author_name, status, seo_title, seo_description, seo_keywords, canonical_url, og_image_url
+        ]
+      );
+      articles.unshift(res.rows[0]);
+      return res.rows[0];
+    } catch (e) {
+      console.warn('DB saveArticleData failed:', e);
+    }
+  }
+
+  // Memory fallback
   if (articleData.id) {
     const idx = articles.findIndex((a) => a.id === Number(articleData.id) || a.slug === String(articleData.id));
     if (idx !== -1) {
@@ -298,47 +560,63 @@ export function saveArticleData(articleData: any) {
     }
   }
   const newArticle = {
-    id: Date.now(),
-    title: articleData.title || 'New Article',
-    slug: articleData.slug || `article-${Date.now()}`,
-    summary: articleData.summary || '',
-    content: articleData.content || '',
-    featured_image_url: articleData.featured_image_url || 'https://i.postimg.cc/Hnj1LYRT/online-banks.png',
-    category: articleData.category || 'Technology',
-    tags: typeof articleData.tags === 'string' ? articleData.tags : JSON.stringify(articleData.tags || []),
-    author_name: articleData.author_name || 'Benir Benjamin',
-    status: articleData.status || 'published',
-    published_at: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-    views_count: 0,
-    comments_count: 0,
-    ...articleData
+    id: Date.now(), title, slug, summary, content, featured_image_url, category, tags,
+    author_name, status, published_at: new Date().toISOString(), created_at: new Date().toISOString(),
+    views_count: 0, comments_count: 0
   };
   articles.unshift(newArticle);
-  if (newArticle.category && !blogCategories.includes(newArticle.category)) {
-    blogCategories.push(newArticle.category);
-  }
   return newArticle;
 }
 
-export function deleteArticleData(id: any) {
-  const idx = articles.findIndex((a) => String(a.id) === String(id));
-  if (idx !== -1) {
-    articles.splice(idx, 1);
+export async function deleteArticleData(id: any) {
+  await ensureDbInitialized();
+  if (hasValidDbConfig) {
+    try {
+      await query('DELETE FROM articles WHERE id = $1 OR slug = $2', [Number(id) || 0, String(id)]);
+    } catch (e) {
+      console.warn('DB deleteArticleData failed:', e);
+    }
   }
+  const idx = articles.findIndex((a) => String(a.id) === String(id) || a.slug === String(id));
+  if (idx !== -1) articles.splice(idx, 1);
   return true;
 }
 
-export function updateArticleStatusData(id: any, status: string) {
-  const idx = articles.findIndex((a) => String(a.id) === String(id));
+export async function updateArticleStatusData(id: any, status: string) {
+  await ensureDbInitialized();
+  if (hasValidDbConfig) {
+    try {
+      const res = await query(
+        'UPDATE articles SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 OR slug = $3 RETURNING *',
+        [status, Number(id) || 0, String(id)]
+      );
+      if (res.rowCount > 0) return res.rows[0];
+    } catch (e) {
+      console.warn('DB updateArticleStatusData failed:', e);
+    }
+  }
+  const idx = articles.findIndex((a) => String(a.id) === String(id) || a.slug === String(id));
   if (idx !== -1) {
-    articles[idx].status = status as any;
+    articles[idx].status = status;
     return articles[idx];
   }
   return { id, status };
 }
 
-export function incrementArticleViewCount(articleIdOrSlug: any) {
+export async function incrementArticleViewCount(articleIdOrSlug: any) {
+  await ensureDbInitialized();
+  if (hasValidDbConfig) {
+    try {
+      const res = await query(
+        'UPDATE articles SET views_count = COALESCE(views_count, 0) + 1 WHERE id = $1 OR slug = $2 RETURNING views_count',
+        [Number(articleIdOrSlug) || 0, String(articleIdOrSlug)]
+      );
+      if (res.rowCount > 0) return res.rows[0].views_count;
+    } catch (e) {
+      console.warn('DB incrementArticleViewCount failed:', e);
+    }
+  }
+
   const art = articles.find((a) => String(a.id) === String(articleIdOrSlug) || a.slug === String(articleIdOrSlug));
   if (art) {
     art.views_count = (art.views_count || 0) + 1;
@@ -347,7 +625,36 @@ export function incrementArticleViewCount(articleIdOrSlug: any) {
   return 1;
 }
 
-export function getArticleCommentsData(articleId: any, isAdmin: boolean = false) {
+// ==================== COMMENTS & MODERATION DATA LAYER ==================== //
+
+export async function getArticleCommentsData(articleId: any, isAdmin: boolean = false) {
+  await ensureDbInitialized();
+  if (hasValidDbConfig) {
+    try {
+      const res = await query(
+        `SELECT * FROM article_comments 
+         WHERE (article_id = $1 OR article_id IN (SELECT id FROM articles WHERE slug = $2))
+         ORDER BY created_at ASC`,
+        [Number(articleId) || 0, String(articleId)]
+      );
+      
+      const filtered = isAdmin ? res.rows : res.rows.filter((c: any) => c.status === 'approved');
+      const commentMap = new Map<string, any>();
+      filtered.forEach((c: any) => commentMap.set(c.id, { ...c, replies: [] }));
+      const rootComments: any[] = [];
+      commentMap.forEach((c) => {
+        if (c.parent_id && commentMap.has(c.parent_id)) {
+          commentMap.get(c.parent_id).replies.push(c);
+        } else {
+          rootComments.push(c);
+        }
+      });
+      return rootComments;
+    } catch (e) {
+      console.warn('DB getArticleCommentsData failed:', e);
+    }
+  }
+
   const numericId = Number(articleId);
   const targetArticles = articles.filter((a) => a.id === numericId || a.slug === String(articleId));
   const targetId = targetArticles.length > 0 ? targetArticles[0].id : numericId;
@@ -361,7 +668,6 @@ export function getArticleCommentsData(articleId: any, isAdmin: boolean = false)
 
   const commentMap = new Map<string, any>();
   filtered.forEach((c) => commentMap.set(c.id, { ...c, replies: [] }));
-
   const rootComments: any[] = [];
   commentMap.forEach((c) => {
     if (c.parent_id && commentMap.has(c.parent_id)) {
@@ -374,17 +680,29 @@ export function getArticleCommentsData(articleId: any, isAdmin: boolean = false)
   return rootComments;
 }
 
-export function getAllCommentsData() {
+export async function getAllCommentsData() {
+  await ensureDbInitialized();
+  if (hasValidDbConfig) {
+    try {
+      const res = await query(
+        `SELECT c.*, COALESCE(a.title, 'Article #' || c.article_id) as article_title 
+         FROM article_comments c 
+         LEFT JOIN articles a ON c.article_id = a.id 
+         ORDER BY c.created_at DESC`
+      );
+      if (res.rows.length > 0) return res.rows;
+    } catch (e) {
+      console.warn('DB getAllCommentsData failed:', e);
+    }
+  }
+
   return articleComments.map((c) => {
     const art = articles.find((a) => a.id === Number(c.article_id));
-    return {
-      ...c,
-      article_title: art ? art.title : `Article #${c.article_id}`
-    };
+    return { ...c, article_title: art ? art.title : `Article #${c.article_id}` };
   });
 }
 
-export function saveCommentData(commentData: {
+export async function saveCommentData(commentData: {
   article_id: number;
   parent_id?: string | null;
   author_name: string;
@@ -392,30 +710,61 @@ export function saveCommentData(commentData: {
   is_admin_reply?: boolean;
   user_ip?: string;
 }) {
+  await ensureDbInitialized();
+  const newId = `c_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+  const author_name = commentData.author_name.trim();
+  const content = commentData.content.trim();
+  const is_admin_reply = Boolean(commentData.is_admin_reply);
+  const user_ip = commentData.user_ip || '127.0.0.1';
+
+  if (hasValidDbConfig) {
+    try {
+      const res = await query(
+        `INSERT INTO article_comments (id, article_id, parent_id, author_name, content, likes_count, status, is_admin_reply, user_ip)
+         VALUES ($1, $2, $3, $4, $5, 0, 'approved', $6, $7) RETURNING *`,
+        [newId, Number(commentData.article_id), commentData.parent_id || null, author_name, content, is_admin_reply, user_ip]
+      );
+      await query('UPDATE articles SET comments_count = COALESCE(comments_count, 0) + 1 WHERE id = $1', [Number(commentData.article_id)]);
+      articleComments.unshift(res.rows[0]);
+      return res.rows[0];
+    } catch (e) {
+      console.warn('DB saveCommentData failed:', e);
+    }
+  }
+
   const newComment = {
-    id: `c_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+    id: newId,
     article_id: Number(commentData.article_id),
     parent_id: commentData.parent_id || null,
-    author_name: commentData.author_name.trim(),
-    content: commentData.content.trim(),
+    author_name,
+    content,
     likes_count: 0,
     status: 'approved',
-    is_admin_reply: Boolean(commentData.is_admin_reply),
-    user_ip: commentData.user_ip || '127.0.0.1',
+    is_admin_reply,
+    user_ip,
     created_at: new Date().toISOString()
   };
 
   articleComments.unshift(newComment);
-
   const art = articles.find((a) => a.id === Number(commentData.article_id));
-  if (art) {
-    art.comments_count = (art.comments_count || 0) + 1;
-  }
-
+  if (art) art.comments_count = (art.comments_count || 0) + 1;
   return newComment;
 }
 
-export function likeCommentData(commentId: string) {
+export async function likeCommentData(commentId: string) {
+  await ensureDbInitialized();
+  if (hasValidDbConfig) {
+    try {
+      const res = await query(
+        'UPDATE article_comments SET likes_count = COALESCE(likes_count, 0) + 1 WHERE id = $1 RETURNING likes_count',
+        [commentId]
+      );
+      if (res.rowCount > 0) return res.rows[0].likes_count;
+    } catch (e) {
+      console.warn('DB likeCommentData failed:', e);
+    }
+  }
+
   const c = articleComments.find((item) => item.id === commentId);
   if (c) {
     c.likes_count = (c.likes_count || 0) + 1;
@@ -424,7 +773,20 @@ export function likeCommentData(commentId: string) {
   return 0;
 }
 
-export function updateCommentStatusData(commentId: string, status: 'approved' | 'hidden' | 'flagged') {
+export async function updateCommentStatusData(commentId: string, status: 'approved' | 'hidden' | 'flagged') {
+  await ensureDbInitialized();
+  if (hasValidDbConfig) {
+    try {
+      const res = await query(
+        'UPDATE article_comments SET status = $1 WHERE id = $2 RETURNING *',
+        [status, commentId]
+      );
+      if (res.rowCount > 0) return res.rows[0];
+    } catch (e) {
+      console.warn('DB updateCommentStatusData failed:', e);
+    }
+  }
+
   const c = articleComments.find((item) => item.id === commentId);
   if (c) {
     c.status = status;
@@ -433,7 +795,16 @@ export function updateCommentStatusData(commentId: string, status: 'approved' | 
   return null;
 }
 
-export function deleteCommentData(commentId: string) {
+export async function deleteCommentData(commentId: string) {
+  await ensureDbInitialized();
+  if (hasValidDbConfig) {
+    try {
+      await query('DELETE FROM article_comments WHERE id = $1 OR parent_id = $1', [commentId]);
+    } catch (e) {
+      console.warn('DB deleteCommentData failed:', e);
+    }
+  }
+
   const idx = articleComments.findIndex((c) => c.id === commentId);
   if (idx !== -1) {
     const [deleted] = articleComments.splice(idx, 1);
@@ -443,88 +814,244 @@ export function deleteCommentData(commentId: string) {
   return null;
 }
 
-export function banUserIpData(ip: string) {
-  if (ip && !bannedIps.includes(ip)) {
-    bannedIps.push(ip);
+export async function banUserIpData(ip: string) {
+  await ensureDbInitialized();
+  if (ip && !bannedIps.includes(ip)) bannedIps.push(ip);
+  if (hasValidDbConfig && ip) {
+    try {
+      await query('INSERT INTO banned_ips (ip) VALUES ($1) ON CONFLICT DO NOTHING', [ip]);
+    } catch (e) {
+      console.warn('DB banUserIpData failed:', e);
+    }
   }
   return true;
 }
 
-export function isIpBanned(ip: string) {
+export async function isIpBanned(ip: string) {
+  await ensureDbInitialized();
+  if (hasValidDbConfig && ip) {
+    try {
+      const res = await query('SELECT ip FROM banned_ips WHERE ip = $1', [ip]);
+      if (res.rowCount > 0) return true;
+    } catch (e) {
+      console.warn('DB isIpBanned failed:', e);
+    }
+  }
   return bannedIps.includes(ip);
 }
 
-// ================= REAL LIVE VISITOR ANALYTICS ENGINE ================= //
+// ==================== REAL-TIME VISITOR ANALYTICS DATA LAYER ==================== //
 
-export let analyticsEvents: any[] = [];
+export async function recordAnalyticsEvent(eventData: any) {
+  await ensureDbInitialized();
+  const event_type = eventData.event_type || 'page_view';
+  const page_url = eventData.page_url || '/';
+  const page_type = eventData.page_type || 'general';
+  const project_id = eventData.project_id ? Number(eventData.project_id) : null;
+  const article_id = eventData.article_id ? Number(eventData.article_id) : null;
+  const referrer = eventData.referrer || 'Direct';
+  const user_agent = eventData.user_agent || '';
+  const device_type = eventData.device_type || 'desktop';
+  const browser = eventData.browser || 'Chrome';
+  const os = eventData.os || 'Windows';
+  const session_id = eventData.session_id || `sess_${Date.now()}`;
 
-export function recordAnalyticsEvent(eventData: any) {
-  const newEvent = {
-    id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-    event_type: eventData.event_type || 'page_view',
-    page_url: eventData.page_url || '/',
-    page_type: eventData.page_type || 'general',
-    project_id: eventData.project_id ? Number(eventData.project_id) : null,
-    article_id: eventData.article_id ? Number(eventData.article_id) : null,
-    referrer: eventData.referrer || 'Direct',
-    user_agent: eventData.user_agent || '',
-    device_type: eventData.device_type || 'desktop',
-    browser: eventData.browser || 'Chrome',
-    os: eventData.os || 'Windows',
-    session_id: eventData.session_id || `sess_${Date.now()}`,
-    created_at: new Date().toISOString()
-  };
-
-  analyticsEvents.unshift(newEvent);
-
-  if (analyticsEvents.length > 5000) {
-    analyticsEvents = analyticsEvents.slice(0, 5000);
+  if (hasValidDbConfig) {
+    try {
+      const res = await query(
+        `INSERT INTO analytics_events 
+          (event_type, page_url, page_type, project_id, article_id, referrer, user_agent, device_type, browser, os, session_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+        [event_type, page_url, page_type, project_id, article_id, referrer, user_agent, device_type, browser, os, session_id]
+      );
+      analyticsEvents.unshift(res.rows[0]);
+      if (analyticsEvents.length > 5000) analyticsEvents = analyticsEvents.slice(0, 5000);
+      return res.rows[0];
+    } catch (e) {
+      console.warn('DB recordAnalyticsEvent failed:', e);
+    }
   }
 
+  const newEvent = {
+    id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+    event_type, page_url, page_type, project_id, article_id, referrer,
+    user_agent, device_type, browser, os, session_id,
+    created_at: new Date().toISOString()
+  };
+  analyticsEvents.unshift(newEvent);
+  if (analyticsEvents.length > 5000) analyticsEvents = analyticsEvents.slice(0, 5000);
   return newEvent;
 }
 
-export function getAnalyticsStatsData(range: string = '30d') {
-  const now = new Date();
-  let cutoffDate: Date | null = null;
+export async function getAnalyticsStatsData(range: string = '30d') {
+  await ensureDbInitialized();
 
-  if (range === 'today') {
-    cutoffDate = new Date();
-    cutoffDate.setHours(0, 0, 0, 0);
-  } else if (range === 'yesterday') {
-    cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - 1);
-    cutoffDate.setHours(0, 0, 0, 0);
-  } else if (range === '7d') {
-    cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - 7);
-  } else if (range === '30d') {
-    cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - 30);
-  } else if (range === 'year') {
-    cutoffDate = new Date();
-    cutoffDate.setFullYear(cutoffDate.getFullYear() - 1);
+  // PostgreSQL Query Path
+  if (hasValidDbConfig) {
+    try {
+      let dateFilter = "created_at >= NOW() - INTERVAL '30 days'";
+      if (range === 'today') {
+        dateFilter = "created_at >= CURRENT_DATE";
+      } else if (range === 'yesterday') {
+        dateFilter = "created_at >= CURRENT_DATE - INTERVAL '1 day' AND created_at < CURRENT_DATE";
+      } else if (range === '7d') {
+        dateFilter = "created_at >= NOW() - INTERVAL '7 days'";
+      } else if (range === '30d') {
+        dateFilter = "created_at >= NOW() - INTERVAL '30 days'";
+      } else if (range === 'year') {
+        dateFilter = "created_at >= NOW() - INTERVAL '1 year'";
+      } else if (range === 'all') {
+        dateFilter = "1=1";
+      }
+
+      const totalViews = await query(`SELECT COUNT(*) as count FROM analytics_events WHERE ${dateFilter} AND event_type = 'page_view'`);
+      const uniqueVisitors = await query(`SELECT COUNT(DISTINCT session_id) as count FROM analytics_events WHERE ${dateFilter}`);
+      const externalClicks = await query(`SELECT COUNT(*) as count FROM analytics_events WHERE ${dateFilter} AND event_type = 'project_external_click'`);
+
+      const topProjectsRes = await query(
+        `SELECT p.name, p.slug, COUNT(e.id) as clicks 
+         FROM analytics_events e 
+         JOIN projects p ON e.project_id = p.id 
+         WHERE e.event_type = 'project_external_click' AND ${dateFilter.replace(/created_at/g, 'e.created_at')}
+         GROUP BY p.id, p.name, p.slug 
+         ORDER BY clicks DESC LIMIT 5`
+      );
+
+      const topArticlesRes = await query(
+        `SELECT a.title, a.slug, a.category, COUNT(e.id) as views 
+         FROM analytics_events e 
+         JOIN articles a ON e.article_id = a.id 
+         WHERE e.event_type = 'page_view' AND ${dateFilter.replace(/created_at/g, 'e.created_at')}
+         GROUP BY a.id, a.title, a.slug, a.category 
+         ORDER BY views DESC LIMIT 5`
+      );
+
+      const sourcesRes = await query(
+        `SELECT COALESCE(referrer, 'Direct') as source, COUNT(*) as count 
+         FROM analytics_events 
+         WHERE ${dateFilter}
+         GROUP BY source ORDER BY count DESC LIMIT 5`
+      );
+
+      const pagesRes = await query(
+        `SELECT UPPER(REPLACE(page_type, '_', ' ')) as page_type, COUNT(*) as count 
+         FROM analytics_events 
+         WHERE ${dateFilter} AND event_type = 'page_view'
+         GROUP BY page_type ORDER BY count DESC`
+      );
+
+      const devicesRes = await query(
+        `SELECT device_type, COUNT(*) as count 
+         FROM analytics_events 
+         WHERE ${dateFilter}
+         GROUP BY device_type ORDER BY count DESC`
+      );
+
+      const browsersRes = await query(
+        `SELECT browser, COUNT(*) as count 
+         FROM analytics_events 
+         WHERE ${dateFilter}
+         GROUP BY browser ORDER BY count DESC`
+      );
+
+      const recentActivityRes = await query(
+        `SELECT id, event_type, page_url, device_type, browser, os, created_at 
+         FROM analytics_events 
+         WHERE ${dateFilter} 
+         ORDER BY created_at DESC LIMIT 10`
+      );
+
+      const totalViewsNum = parseInt(totalViews.rows[0]?.count || '0', 10);
+      const uniqueVisitorsNum = parseInt(uniqueVisitors.rows[0]?.count || '0', 10);
+      const externalClicksNum = parseInt(externalClicks.rows[0]?.count || '0', 10);
+      const avgViewsPerSession = uniqueVisitorsNum > 0 ? Number((totalViewsNum / uniqueVisitorsNum).toFixed(1)) : 0;
+
+      return {
+        overview: {
+          total_views: totalViewsNum,
+          unique_visitors: uniqueVisitorsNum,
+          external_clicks: externalClicksNum,
+          avg_views_per_session: avgViewsPerSession,
+          bounce_rate: 0
+        },
+        top_projects: topProjectsRes.rows.map((r: any) => ({ ...r, clicks: parseInt(r.clicks, 10) })),
+        top_articles: topArticlesRes.rows.map((r: any) => ({ ...r, views: parseInt(r.views, 10) })),
+        sources: sourcesRes.rows.map((r: any) => ({ ...r, count: parseInt(r.count, 10) })),
+        pages: pagesRes.rows.map((r: any) => ({ ...r, count: parseInt(r.count, 10) })),
+        devices: devicesRes.rows.map((r: any) => ({ ...r, count: parseInt(r.count, 10) })),
+        browsers: browsersRes.rows.map((r: any) => ({ ...r, count: parseInt(r.count, 10) })),
+        recent_activity: recentActivityRes.rows
+      };
+    } catch (e) {
+      console.warn('DB getAnalyticsStatsData failed, falling back to memory:', e);
+    }
   }
 
-  const filtered = cutoffDate
-    ? analyticsEvents.filter((e) => new Date(e.created_at) >= cutoffDate!)
-    : analyticsEvents;
+  // Memory Calculation Path
+  const now = new Date();
+  let startMs: number | null = null;
+  let endMs: number | null = null;
+
+  if (range === 'today') {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    startMs = start.getTime();
+  } else if (range === 'yesterday') {
+    const start = new Date();
+    start.setDate(start.getDate() - 1);
+    start.setHours(0, 0, 0, 0);
+    startMs = start.getTime();
+
+    const end = new Date();
+    end.setHours(0, 0, 0, 0);
+    endMs = end.getTime();
+  } else if (range === '7d') {
+    startMs = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+  } else if (range === '30d') {
+    startMs = now.getTime() - 30 * 24 * 60 * 60 * 1000;
+  } else if (range === 'year') {
+    startMs = now.getTime() - 365 * 24 * 60 * 60 * 1000;
+  }
+
+  const filtered = analyticsEvents.filter((e) => {
+    const t = new Date(e.created_at).getTime();
+    if (startMs !== null && t < startMs) return false;
+    if (endMs !== null && t >= endMs) return false;
+    return true;
+  });
 
   const pageViews = filtered.filter((e) => e.event_type === 'page_view');
   const externalClicks = filtered.filter((e) => e.event_type === 'project_external_click');
-  const uniqueSessions = new Set(filtered.map((e) => e.session_id));
+  const uniqueSessionsMap = new Map<string, number>();
+
+  filtered.forEach((e) => {
+    if (e.session_id) uniqueSessionsMap.set(e.session_id, (uniqueSessionsMap.get(e.session_id) || 0) + 1);
+  });
+
+  const totalUniqueVisitors = uniqueSessionsMap.size;
+  let singlePageSessions = 0;
+  uniqueSessionsMap.forEach((c) => { if (c === 1) singlePageSessions++; });
+
+  const bounceRate = totalUniqueVisitors > 0 ? Math.round((singlePageSessions / totalUniqueVisitors) * 100) : 0;
+  const avgViewsPerSession = totalUniqueVisitors > 0 ? Number((pageViews.length / totalUniqueVisitors).toFixed(1)) : 0;
 
   const projectClickCounts = new Map<number, number>();
   externalClicks.forEach((e) => {
-    if (e.project_id) {
-      projectClickCounts.set(e.project_id, (projectClickCounts.get(e.project_id) || 0) + 1);
-    }
+    if (e.project_id) projectClickCounts.set(e.project_id, (projectClickCounts.get(e.project_id) || 0) + 1);
   });
 
-  const top_projects = projects.map((p) => {
-    const clicks = projectClickCounts.get(p.id) || 0;
-    return { name: p.name, slug: p.slug, clicks };
-  }).sort((a, b) => b.clicks - a.clicks);
+  const top_projects = projects.map((p) => ({
+    name: p.name, slug: p.slug, clicks: projectClickCounts.get(p.id) || 0
+  })).sort((a, b) => b.clicks - a.clicks);
+
+  const articleViewCounts = new Map<number, number>();
+  pageViews.forEach((e) => {
+    if (e.article_id) articleViewCounts.set(e.article_id, (articleViewCounts.get(e.article_id) || 0) + 1);
+  });
+
+  const top_articles = articles.map((a) => ({
+    title: a.title, slug: a.slug, views: articleViewCounts.get(a.id) || (a.views_count || 0), category: a.category
+  })).sort((a, b) => b.views - a.views);
 
   const sourceCounts = new Map<string, number>();
   filtered.forEach((e) => {
@@ -536,41 +1063,59 @@ export function getAnalyticsStatsData(range: string = '30d') {
       else if (e.referrer.includes('x.com') || e.referrer.includes('twitter')) src = 'X (Twitter)';
       else if (e.referrer.includes('youtube')) src = 'YouTube';
       else {
-        try {
-          src = new URL(e.referrer).hostname;
-        } catch {
-          src = 'Direct / Bookmark';
-        }
+        try { src = new URL(e.referrer).hostname; } catch { src = 'Direct / Bookmark'; }
       }
     }
     sourceCounts.set(src, (sourceCounts.get(src) || 0) + 1);
   });
 
-  const sources = Array.from(sourceCounts.entries()).map(([source, count]) => ({
-    source,
-    count
+  const sources = Array.from(sourceCounts.entries()).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count);
+
+  const pageTypeCounts = new Map<string, number>();
+  pageViews.forEach((e) => {
+    const pType = e.page_type || 'general';
+    pageTypeCounts.set(pType, (pageTypeCounts.get(pType) || 0) + 1);
+  });
+
+  const pages = Array.from(pageTypeCounts.entries()).map(([page_type, count]) => ({
+    page_type: page_type.replace('_', ' ').toUpperCase(), count
   })).sort((a, b) => b.count - a.count);
 
   const deviceCounts = new Map<string, number>();
   filtered.forEach((e) => {
-    const dev = e.device_type || 'desktop';
+    const dev = (e.device_type || 'desktop').toLowerCase();
     deviceCounts.set(dev, (deviceCounts.get(dev) || 0) + 1);
   });
 
-  const devices = Array.from(deviceCounts.entries()).map(([device_type, count]) => ({
-    device_type,
-    count
-  })).sort((a, b) => b.count - a.count);
+  const devices = Array.from(deviceCounts.entries()).map(([device_type, count]) => ({ device_type, count })).sort((a, b) => b.count - a.count);
+
+  const browserCounts = new Map<string, number>();
+  filtered.forEach((e) => {
+    const br = e.browser || 'Chrome';
+    browserCounts.set(br, (browserCounts.get(br) || 0) + 1);
+  });
+
+  const browsers = Array.from(browserCounts.entries()).map(([browser, count]) => ({ browser, count })).sort((a, b) => b.count - a.count);
+
+  const recent_activity = filtered.slice(0, 10).map((e) => ({
+    id: e.id, event_type: e.event_type, page_url: e.page_url, device_type: e.device_type,
+    browser: e.browser, os: e.os, created_at: e.created_at
+  }));
 
   return {
     overview: {
       total_views: pageViews.length,
-      unique_visitors: uniqueSessions.size,
-      external_clicks: externalClicks.length
+      unique_visitors: totalUniqueVisitors,
+      external_clicks: externalClicks.length,
+      avg_views_per_session: avgViewsPerSession,
+      bounce_rate: bounceRate
     },
     top_projects,
-    sources: sources.length > 0 ? sources : [{ source: 'Direct / Bookmark', count: filtered.length }],
-    devices: devices.length > 0 ? devices : [{ device_type: 'desktop', count: filtered.length }]
+    top_articles,
+    sources,
+    pages,
+    devices,
+    browsers,
+    recent_activity
   };
 }
-

@@ -1,13 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import jwt from 'jsonwebtoken';
 import {
-  companyData,
-  socialLinks,
-  projects,
-  articles,
+  getCompanyAndSocialData,
   updateCompanyData,
+  getProjectsData,
   saveProjectData,
   deleteProjectData,
+  getArticlesData,
   saveArticleData,
   deleteArticleData,
   updateArticleStatusData,
@@ -129,13 +128,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 2. SETTINGS ROUTES
     if (segments[0] === 'settings') {
       if (segments.length === 1 && method === 'GET') {
-        return res.status(200).json({ company: companyData, social: socialLinks });
+        const { company, social } = await getCompanyAndSocialData();
+        return res.status(200).json({ company, social });
       }
 
       if (segments[1] === 'company') {
-        if (method === 'GET') return res.status(200).json({ company: companyData });
+        if (method === 'GET') {
+          const { company } = await getCompanyAndSocialData();
+          return res.status(200).json({ company });
+        }
         if (method === 'PUT') {
-          const updated = updateCompanyData(body);
+          const updated = await updateCompanyData(body);
           return res.status(200).json({ success: true, message: 'Company settings updated successfully.', company: updated });
         }
       }
@@ -144,14 +147,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 3. CATEGORIES ROUTES (DYNAMIC CATEGORY CREATION & MANAGEMENT)
     if (segments[0] === 'categories') {
       if (method === 'GET') {
-        return res.status(200).json({ categories: getBlogCategoriesData() });
+        const categories = await getBlogCategoriesData();
+        return res.status(200).json({ categories });
       }
       if (method === 'POST') {
         const { name } = body;
         if (!name || !String(name).trim()) {
           return res.status(400).json({ error: 'Category name is required.' });
         }
-        const updated = addBlogCategoryData(String(name));
+        const updated = await addBlogCategoryData(String(name));
         return res.status(201).json({ categories: updated, message: `Category '${name}' added successfully.` });
       }
       if (method === 'PUT') {
@@ -159,7 +163,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!oldName || !newName) {
           return res.status(400).json({ error: 'Both oldName and newName are required.' });
         }
-        const updated = editBlogCategoryData(String(oldName), String(newName));
+        const updated = await editBlogCategoryData(String(oldName), String(newName));
         return res.status(200).json({ categories: updated, message: `Category renamed to '${newName}'.` });
       }
     }
@@ -169,13 +173,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (segments.length === 1) {
         if (method === 'GET') {
           const { category, search, status } = req.query;
-          let result = [...articles];
-          if (category && category !== 'All') result = result.filter((a) => a.category === category);
-          if (status && status !== 'all') result = result.filter((a) => a.status === status);
-          if (search) {
-            const q = String(search).toLowerCase();
-            result = result.filter((a) => a.title.toLowerCase().includes(q) || a.summary.toLowerCase().includes(q));
-          }
+          const result = await getArticlesData({
+            category: category ? String(category) : undefined,
+            search: search ? String(search) : undefined,
+            status: status ? String(status) : undefined
+          });
           return res.status(200).json({ articles: result });
         }
 
@@ -184,7 +186,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (!title || !slug || !content) {
             return res.status(400).json({ error: 'Title, slug, and content are required.' });
           }
-          const saved = saveArticleData(body);
+          const saved = await saveArticleData(body);
           return res.status(200).json({ article: saved, message: 'Article saved successfully.' });
         }
       }
@@ -192,29 +194,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (segments.length === 3 && segments[2] === 'status' && method === 'PUT') {
         const articleId = segments[1];
         const { status } = body;
-        const updated = updateArticleStatusData(articleId, status);
+        const updated = await updateArticleStatusData(articleId, status);
         return res.status(200).json({ article: updated, message: `Article status updated to ${status}.` });
       }
 
       if (segments.length === 3 && segments[2] === 'view' && method === 'POST') {
         const articleId = segments[1];
-        const count = incrementArticleViewCount(articleId);
+        const count = await incrementArticleViewCount(articleId);
         return res.status(200).json({ views_count: count });
       }
 
       if (segments.length === 2) {
         const articleId = segments[1];
         if (method === 'GET') {
-          const article = articles.find((a) => String(a.id) === articleId || a.slug === articleId);
+          const allArticles = await getArticlesData();
+          const article = allArticles.find((a: any) => String(a.id) === articleId || a.slug === articleId);
           if (!article) return res.status(404).json({ error: 'Article not found.' });
           return res.status(200).json({ article });
         }
         if (method === 'PUT') {
-          const saved = saveArticleData({ id: articleId, ...body });
+          const saved = await saveArticleData({ id: articleId, ...body });
           return res.status(200).json({ article: saved, message: 'Article updated successfully.' });
         }
         if (method === 'DELETE') {
-          deleteArticleData(articleId);
+          await deleteArticleData(articleId);
           return res.status(200).json({ success: true, message: 'Article deleted successfully.' });
         }
       }
@@ -223,33 +226,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 5. COMMENTS & MODERATION ROUTES
     if (segments[0] === 'comments') {
       if (segments[1] === 'all' && method === 'GET') {
-        const allComments = getAllCommentsData();
+        const allComments = await getAllCommentsData();
         return res.status(200).json({ comments: allComments });
       }
 
       if (segments[1] === 'ban' && method === 'POST') {
         const { ip } = body;
         if (!ip) return res.status(400).json({ error: 'IP address is required for ban.' });
-        banUserIpData(ip);
+        await banUserIpData(ip);
         return res.status(200).json({ success: true, message: `IP ${ip} has been banned.` });
       }
 
       if (segments.length === 3 && segments[2] === 'like' && method === 'POST') {
         const commentId = segments[1];
-        const likes = likeCommentData(commentId);
+        const likes = await likeCommentData(commentId);
         return res.status(200).json({ likes_count: likes });
       }
 
       if (segments.length === 3 && segments[2] === 'status' && (method === 'PATCH' || method === 'PUT')) {
         const commentId = segments[1];
         const { status } = body;
-        const updated = updateCommentStatusData(commentId, status);
+        const updated = await updateCommentStatusData(commentId, status);
         return res.status(200).json({ comment: updated, message: `Comment status set to ${status}.` });
       }
 
       if (segments.length === 2 && method === 'DELETE') {
         const commentId = segments[1];
-        deleteCommentData(commentId);
+        await deleteCommentData(commentId);
         return res.status(200).json({ success: true, message: 'Comment deleted successfully.' });
       }
 
@@ -258,12 +261,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const articleId = req.query.article_id || req.query.articleId;
           const isAdmin = req.query.admin === 'true';
           if (!articleId) return res.status(400).json({ error: 'article_id query param is required.' });
-          const comments = getArticleCommentsData(articleId, isAdmin);
+          const comments = await getArticleCommentsData(articleId, isAdmin);
           return res.status(200).json({ comments });
         }
 
         if (method === 'POST') {
-          if (isIpBanned(clientIp)) {
+          const banned = await isIpBanned(clientIp);
+          if (banned) {
             return res.status(403).json({ error: 'You are banned from commenting on this platform.' });
           }
 
@@ -279,7 +283,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
           }
 
-          const saved = saveCommentData({
+          const saved = await saveCommentData({
             article_id,
             parent_id,
             author_name,
@@ -298,10 +302,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (segments.length === 1) {
         if (method === 'GET') {
           const { category, featured, status } = req.query;
-          let result = [...projects];
-          if (featured === 'true') result = result.filter((p) => p.featured);
-          if (category && category !== 'All') result = result.filter((p) => p.category === category);
-          if (status && status !== 'all') result = result.filter((p) => p.status === status);
+          const result = await getProjectsData({
+            category: category ? String(category) : undefined,
+            featured: featured ? String(featured) : undefined,
+            status: status ? String(status) : undefined
+          });
           return res.status(200).json({ projects: result });
         }
 
@@ -310,7 +315,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (!name || !slug || !url || !short_description) {
             return res.status(400).json({ error: 'Name, slug, URL, and short description are required.' });
           }
-          const saved = saveProjectData(body);
+          const saved = await saveProjectData(body);
           return res.status(200).json({ project: saved, message: 'Project saved successfully.' });
         }
       }
@@ -318,16 +323,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (segments.length === 2) {
         const projectId = segments[1];
         if (method === 'GET') {
-          const project = projects.find((p) => String(p.id) === projectId || p.slug === projectId);
+          const allProjects = await getProjectsData();
+          const project = allProjects.find((p: any) => String(p.id) === projectId || p.slug === projectId);
           if (!project) return res.status(404).json({ error: 'Project not found.' });
           return res.status(200).json({ project });
         }
         if (method === 'PUT') {
-          const saved = saveProjectData({ id: projectId, ...body });
+          const saved = await saveProjectData({ id: projectId, ...body });
           return res.status(200).json({ project: saved, message: 'Project updated successfully.' });
         }
         if (method === 'DELETE') {
-          deleteProjectData(projectId);
+          await deleteProjectData(projectId);
           return res.status(200).json({ success: true, message: 'Project deleted successfully.' });
         }
       }
@@ -362,12 +368,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (segments[0] === 'analytics') {
       if (segments[1] === 'stats' && method === 'GET') {
         const range = String(req.query.range || '30d');
-        const stats = getAnalyticsStatsData(range);
+        const stats = await getAnalyticsStatsData(range);
         return res.status(200).json(stats);
       }
 
       if (segments[1] === 'track' && method === 'POST') {
-        recordAnalyticsEvent(body);
+        await recordAnalyticsEvent(body);
         return res.status(200).json({ success: true });
       }
     }

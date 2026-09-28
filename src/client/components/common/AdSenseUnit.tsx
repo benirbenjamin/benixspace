@@ -27,27 +27,25 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
   style = {},
 }) => {
   const insRef = useRef<HTMLModElement | null>(null);
-  const [isAdVisible, setIsAdVisible] = useState(false);
+  const [isUnfilled, setIsUnfilled] = useState(false);
 
   useEffect(() => {
     const insNode = insRef.current;
     if (!insNode) return;
 
-    // MutationObserver to detect when AdSense populates the ins tag
+    // MutationObserver to hide container ONLY if AdSense explicitly returns unfilled status
     const observer = new MutationObserver(() => {
       const status = insNode.getAttribute('data-ad-status');
-      const hasHeight = insNode.offsetHeight > 0 || insNode.childElementCount > 0;
-
-      if (status === 'filled' || (status !== 'unfilled' && hasHeight)) {
-        setIsAdVisible(true);
-      } else if (status === 'unfilled') {
-        setIsAdVisible(false);
+      if (status === 'unfilled') {
+        setIsUnfilled(true);
+      } else if (status === 'filled') {
+        setIsUnfilled(false);
       }
     });
 
     observer.observe(insNode, {
       attributes: true,
-      attributeFilter: ['data-ad-status', 'style', 'class'],
+      attributeFilter: ['data-ad-status', 'class'],
       childList: true,
       subtree: true,
     });
@@ -56,9 +54,8 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
       if (typeof window !== 'undefined') {
         (window.adsbygoogle = window.adsbygoogle || []).push({});
       }
-    } catch {
-      // Silently catch ad-blocker or duplicate push errors without exposing errors
-      setIsAdVisible(false);
+    } catch (err) {
+      // Catch duplicate push or adblocker restrictions gracefully
     }
 
     return () => {
@@ -66,12 +63,18 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
     };
   }, [slot, clientId]);
 
+  if (isUnfilled) {
+    return null;
+  }
+
   return (
     <div
-      className={`adsense-wrapper transition-all duration-300 ${className}`}
+      className={`adsense-container my-6 w-full text-center transition-all duration-300 ${className}`}
       style={{
-        display: isAdVisible ? 'block' : 'none',
+        display: 'block',
+        minHeight: '90px',
         overflow: 'hidden',
+        ...style
       }}
     >
       <ins
@@ -80,7 +83,8 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
         style={{
           display: 'block',
           textAlign: 'center',
-          ...style,
+          minWidth: '250px',
+          minHeight: '90px',
         }}
         data-ad-client={clientId}
         data-ad-slot={slot}

@@ -14,45 +14,70 @@ export const ArticleAdInjector: React.FC<ArticleAdInjectorProps> = ({
 }) => {
   if (!content) return null;
 
-  // Split HTML string by paragraph closing tags
-  const paragraphs = content.split(/<\/p>/i);
+  // Split HTML string by paragraph or header closing tags
+  const blocks = content.split(/(<\/p>|<\/h2>|<\/h3>|<\/div>)/i).filter(Boolean);
 
-  // If content is short or doesn't have multiple paragraphs, render normally with an ad at the end
-  if (paragraphs.length <= 2) {
+  // If content is very short, display single block with top and bottom ads
+  if (blocks.length <= 4) {
     return (
       <div className={`article-content space-y-6 ${className}`}>
+        <AdSenseUnit slot={slot} format="auto" className="my-6" />
         <div dangerouslySetInnerHTML={{ __html: content }} />
-        <AdSenseUnit slot={slot} className="my-8" />
+        <AdSenseUnit slot={slot} format="auto" className="my-6" />
       </div>
     );
   }
 
-  // Inject ads after paragraph index 1 (2nd paragraph) and index 4 (5th paragraph)
+  // Recombine blocks and inject ads after 2nd block, 5th block, and 8th block
   const elements: React.ReactNode[] = [];
+  let currentHtml = '';
+  let blockCounter = 0;
 
-  paragraphs.forEach((paragraph, index) => {
-    if (!paragraph.trim()) return;
+  for (let i = 0; i < blocks.length; i++) {
+    currentHtml += blocks[i];
 
-    const formattedParagraph = paragraph.toLowerCase().includes('<p')
-      ? `${paragraph}</p>`
-      : `<p>${paragraph}</p>`;
+    // Every closing tag completes a content block
+    if (/^<\/(p|h2|h3|div)>$/i.test(blocks[i])) {
+      blockCounter++;
 
+      elements.push(
+        <div
+          key={`block-${i}`}
+          dangerouslySetInnerHTML={{ __html: currentHtml }}
+        />
+      );
+      currentHtml = '';
+
+      // Inject ads after block 2, block 5, block 8
+      if (blockCounter === 2 || blockCounter === 5 || blockCounter === 8) {
+        elements.push(
+          <div key={`ad-inj-${blockCounter}`} className="my-8 flex justify-center w-full">
+            <AdSenseUnit slot={slot} format="auto" responsive className="w-full max-w-3xl" />
+          </div>
+        );
+      }
+    }
+  }
+
+  // Append any remaining HTML
+  if (currentHtml.trim()) {
     elements.push(
       <div
-        key={`p-${index}`}
-        dangerouslySetInnerHTML={{ __html: formattedParagraph }}
+        key="block-remaining"
+        dangerouslySetInnerHTML={{ __html: currentHtml }}
       />
     );
+  }
 
-    // Inject ad after 2nd paragraph (index 1) and 5th paragraph (index 4)
-    if (index === 1 || index === 4) {
-      elements.push(
-        <div key={`ad-${index}`} className="my-8 flex justify-center">
-          <AdSenseUnit slot={slot} className="w-full max-w-2xl" />
-        </div>
-      );
-    }
-  });
-
-  return <div className={`article-content space-y-6 ${className}`}>{elements}</div>;
+  return (
+    <div className={`article-content space-y-6 ${className}`}>
+      {/* Top Article Ad */}
+      <AdSenseUnit slot={slot} format="auto" className="my-6 w-full" />
+      
+      {elements}
+      
+      {/* Bottom Article Ad */}
+      <AdSenseUnit slot={slot} format="auto" className="my-6 w-full" />
+    </div>
+  );
 };

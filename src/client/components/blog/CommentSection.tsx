@@ -291,13 +291,20 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ articleId }) => 
         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Leave a Comment</h4>
         
         <div className="space-y-1">
-          <label className="text-[11px] font-bold text-slate-600">Your Full Name</label>
+          <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+            <span>Your Full Name</span>
+            {authorName && (
+              <span className="text-[10px] text-sky-600 font-medium bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100">
+                Saved in browser — editable anytime
+              </span>
+            )}
+          </label>
           <div className="relative">
             <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={authorName}
-              onChange={(e) => setAuthorName(e.target.value)}
+              onChange={(e) => handleNameChange(e.target.value)}
               placeholder="Enter your name (e.g., Eric Nshuti)"
               className={`w-full pl-9 pr-4 py-2.5 rounded-xl bg-white border text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all ${
                 nameHasProfanity ? 'border-red-400 focus:ring-red-400' : 'border-slate-200'
