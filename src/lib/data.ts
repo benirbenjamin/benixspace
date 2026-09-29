@@ -311,10 +311,8 @@ export async function getProjectsData(filters?: { category?: string; search?: st
       sql += ' ORDER BY sort_order ASC, created_at DESC';
 
       const res = await query(sql, params);
-      if (res.rows.length > 0 || !filters || Object.keys(filters).length === 0) {
-        projects = res.rows;
-        return res.rows;
-      }
+      projects = res.rows;
+      return res.rows;
     } catch (e) {
       console.warn('DB getProjectsData failed, falling back to memory:', e);
     }
@@ -510,10 +508,8 @@ export async function getArticlesData(filters?: { category?: string; search?: st
       sql += ' ORDER BY published_at DESC, created_at DESC';
 
       const res = await query(sql, params);
-      if (res.rows.length > 0 || !filters || Object.keys(filters).length === 0) {
-        articles = res.rows;
-        return res.rows;
-      }
+      articles = res.rows;
+      return res.rows;
     } catch (e) {
       console.warn('DB getArticlesData failed:', e);
     }
@@ -991,7 +987,7 @@ export async function getAnalyticsStatsData(range: string = '30d') {
         `SELECT COALESCE(referrer, 'Direct') as source, COUNT(*) as count 
          FROM analytics_events 
          WHERE ${dateFilter}
-         GROUP BY source ORDER BY count DESC LIMIT 5`
+         GROUP BY 1 ORDER BY count DESC LIMIT 5`
       );
 
       const pagesRes = await query(
@@ -1049,7 +1045,7 @@ export async function getAnalyticsStatsData(range: string = '30d') {
         const ec = await query(`SELECT COUNT(*) as count FROM analytics_events WHERE ${dateFilter} AND event_type = 'project_external_click'`);
         const tp = await query(`SELECT p.name, p.slug, COUNT(e.id) as clicks FROM analytics_events e JOIN projects p ON e.project_id = p.id WHERE e.event_type = 'project_external_click' AND ${dateFilter.replace(/created_at/g, 'e.created_at')} GROUP BY p.id, p.name, p.slug ORDER BY clicks DESC LIMIT 5`);
         const ta = await query(`SELECT a.title, a.slug, a.category, COUNT(e.id) as views FROM analytics_events e JOIN articles a ON e.article_id = a.id WHERE e.event_type = 'page_view' AND ${dateFilter.replace(/created_at/g, 'e.created_at')} GROUP BY a.id, a.title, a.slug, a.category ORDER BY views DESC LIMIT 5`);
-        const sr = await query(`SELECT COALESCE(referrer, 'Direct') as source, COUNT(*) as count FROM analytics_events WHERE ${dateFilter} GROUP BY source ORDER BY count DESC LIMIT 5`);
+        const sr = await query(`SELECT COALESCE(referrer, 'Direct') as source, COUNT(*) as count FROM analytics_events WHERE ${dateFilter} GROUP BY 1 ORDER BY count DESC LIMIT 5`);
         const pg = await query(`SELECT UPPER(REPLACE(page_type, '_', ' ')) as page_type, COUNT(*) as count FROM analytics_events WHERE ${dateFilter} AND event_type = 'page_view' GROUP BY page_type ORDER BY count DESC`);
         const dv = await query(`SELECT device_type, COUNT(*) as count FROM analytics_events WHERE ${dateFilter} GROUP BY device_type ORDER BY count DESC`);
         const br = await query(`SELECT browser, COUNT(*) as count FROM analytics_events WHERE ${dateFilter} GROUP BY browser ORDER BY count DESC`);

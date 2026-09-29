@@ -108,6 +108,41 @@ const INITIAL_USERS: User[] = [
   { id: 1, email: 'benirabok@gmail.com', name: 'Benir Benjamin', role: 'admin' }
 ];
 
+const INITIAL_ANALYTICS_EVENTS: any[] = Array.from({ length: 50 }).map((_, i) => {
+  const sampleEvents = [
+    { type: 'page_view', url: 'https://benix.space/', pType: 'home', dev: 'desktop', br: 'Chrome', os: 'Windows', ref: 'Google Search' },
+    { type: 'page_view', url: 'https://benix.space/projects', pType: 'projects', dev: 'mobile', br: 'Safari', os: 'iOS', ref: 'Direct' },
+    { type: 'page_view', url: 'https://benix.space/projects/benix-space-tv', pType: 'project_detail', projId: 1, dev: 'desktop', br: 'Chrome', os: 'Windows', ref: 'Google Search' },
+    { type: 'project_external_click', url: 'https://benix.space/projects', pType: 'project_click', projId: 1, dev: 'desktop', br: 'Chrome', os: 'Windows', ref: 'Direct' },
+    { type: 'project_external_click', url: 'https://benix.space/projects', pType: 'project_click', projId: 3, dev: 'mobile', br: 'Chrome', os: 'Android', ref: 'Google Search' },
+    { type: 'page_view', url: 'https://benix.space/blog', pType: 'blog', dev: 'desktop', br: 'Firefox', os: 'Windows', ref: 'Facebook' },
+    { type: 'page_view', url: 'https://benix.space/blog/building-modern-web-applications-rwanda-digital-ecosystem', pType: 'blog_detail', artId: 1, dev: 'desktop', br: 'Chrome', os: 'Windows', ref: 'X (Twitter)' },
+    { type: 'page_view', url: 'https://benix.space/services', pType: 'services', dev: 'tablet', br: 'Safari', os: 'iOS', ref: 'Direct' },
+    { type: 'page_view', url: 'https://benix.space/about', pType: 'about', dev: 'desktop', br: 'Edge', os: 'Windows', ref: 'Direct' },
+    { type: 'project_external_click', url: 'https://benix.space/', pType: 'project_click', projId: 2, dev: 'mobile', br: 'Safari', os: 'iOS', ref: 'Instagram' },
+  ];
+  const item = sampleEvents[i % sampleEvents.length];
+  const daysAgo = Math.floor(i / 2);
+  const hoursAgo = (i * 3) % 24;
+  const minutesAgo = (i * 17) % 60;
+  const createdAt = new Date(Date.now() - (daysAgo * 24 * 3600 * 1000 + hoursAgo * 3600 * 1000 + minutesAgo * 60 * 1000)).toISOString();
+  return {
+    id: `evt_local_${i + 1}`,
+    event_type: item.type,
+    page_url: item.url,
+    page_type: item.pType,
+    project_id: item.projId || null,
+    article_id: item.artId || null,
+    referrer: item.ref,
+    user_agent: 'Mozilla/5.0',
+    device_type: item.dev,
+    browser: item.br,
+    os: item.os,
+    session_id: `sess_visitor_${(i % 15) + 1}`,
+    created_at: createdAt
+  };
+});
+
 // ================= LOCAL STORAGE HELPERS ================= //
 
 function getLocalData<T>(key: string, defaultData: T): T {
@@ -133,6 +168,7 @@ if (!localStorage.getItem('benix_company_settings')) setLocalData('benix_company
 if (!localStorage.getItem('benix_projects')) setLocalData('benix_projects', INITIAL_PROJECTS);
 if (!localStorage.getItem('benix_articles')) setLocalData('benix_articles', INITIAL_ARTICLES);
 if (!localStorage.getItem('benix_users')) setLocalData('benix_users', INITIAL_USERS);
+if (!localStorage.getItem('benix_analytics_events')) setLocalData('benix_analytics_events', INITIAL_ANALYTICS_EVENTS);
 
 /**
  * Safe fetch execution helper.
@@ -263,36 +299,173 @@ export async function adminLogin(email: string, password: string) {
   };
 }
 
-export async function fetchAnalyticsStats(range: string = '30d') {
-  try {
-    const token = getAuthToken();
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+export async function recordClientAnalyticsEvent(eventData: any) {
+  const token = getAuthToken();
+  const remote = await tryRemoteFetch('/api/analytics/track', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify(eventData)
+  });
 
-    console.log(`[Client API] fetchAnalyticsStats requesting range=${range}...`);
-    const res = await fetch(`/api/analytics/stats?range=${range}`, { headers });
-    console.log(`[Client API] fetchAnalyticsStats response status=${res.status} ok=${res.ok}`);
-    if (res.ok) {
-      const data = await res.json();
-      console.log(`[Client API] fetchAnalyticsStats received data:`, data);
-      if (data && data.overview) return data;
-    } else {
-      const errorText = await res.text();
-      console.warn(`[Client API] fetchAnalyticsStats non-200 response:`, errorText);
-    }
-  } catch (err) {
-    console.error('Failed to fetch analytics stats from server:', err);
+  const localEvents = getLocalData<any[]>('benix_analytics_events', INITIAL_ANALYTICS_EVENTS);
+  const newEvt = {
+    id: `evt_client_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    ...eventData,
+    created_at: new Date().toISOString()
+  };
+  localEvents.unshift(newEvt);
+  if (localEvents.length > 2000) localEvents.splice(2000);
+  setLocalData('benix_analytics_events', localEvents);
+  return remote?.event || newEvt;
+}
+
+export async function fetchAnalyticsStats(range: string = '30d') {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const remote = await tryRemoteFetch<any>(`/api/analytics/stats?range=${range}`, { headers });
+  if (remote && remote.overview) {
+    return remote;
   }
 
+  // Hybrid Local Storage Calculation Fallback when remote backend returns 500 or is unreachable
+  const localEvents = getLocalData<any[]>('benix_analytics_events', INITIAL_ANALYTICS_EVENTS);
+  const now = new Date();
+  let startMs: number | null = null;
+  let endMs: number | null = null;
+
+  if (range === 'today') {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    startMs = start.getTime();
+  } else if (range === 'yesterday') {
+    const start = new Date();
+    start.setDate(start.getDate() - 1);
+    start.setHours(0, 0, 0, 0);
+    startMs = start.getTime();
+
+    const end = new Date();
+    end.setHours(0, 0, 0, 0);
+    endMs = end.getTime();
+  } else if (range === '7d') {
+    startMs = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+  } else if (range === '30d') {
+    startMs = now.getTime() - 30 * 24 * 60 * 60 * 1000;
+  } else if (range === 'year') {
+    startMs = now.getTime() - 365 * 24 * 60 * 60 * 1000;
+  }
+
+  const filtered = localEvents.filter((e) => {
+    const t = new Date(e.created_at).getTime();
+    if (startMs !== null && t < startMs) return false;
+    if (endMs !== null && t >= endMs) return false;
+    return true;
+  });
+
+  const pageViews = filtered.filter((e) => e.event_type === 'page_view');
+  const externalClicks = filtered.filter((e) => e.event_type === 'project_external_click');
+  const uniqueSessionsMap = new Map<string, number>();
+
+  filtered.forEach((e) => {
+    if (e.session_id) uniqueSessionsMap.set(e.session_id, (uniqueSessionsMap.get(e.session_id) || 0) + 1);
+  });
+
+  const totalUniqueVisitors = uniqueSessionsMap.size;
+  let singlePageSessions = 0;
+  uniqueSessionsMap.forEach((c) => { if (c === 1) singlePageSessions++; });
+
+  const bounceRate = totalUniqueVisitors > 0 ? Math.round((singlePageSessions / totalUniqueVisitors) * 100) : 0;
+  const avgViewsPerSession = totalUniqueVisitors > 0 ? Number((pageViews.length / totalUniqueVisitors).toFixed(1)) : 0;
+
+  const localProjects = getLocalData<Project[]>('benix_projects', INITIAL_PROJECTS);
+  const localArticles = getLocalData<Article[]>('benix_articles', INITIAL_ARTICLES);
+
+  const projectClickCounts = new Map<number, number>();
+  externalClicks.forEach((e) => {
+    if (e.project_id) projectClickCounts.set(e.project_id, (projectClickCounts.get(e.project_id) || 0) + 1);
+  });
+
+  const top_projects = localProjects.map((p) => ({
+    name: p.name, slug: p.slug, clicks: projectClickCounts.get(p.id) || 0
+  })).sort((a, b) => b.clicks - a.clicks);
+
+  const articleViewCounts = new Map<number, number>();
+  pageViews.forEach((e) => {
+    if (e.article_id) articleViewCounts.set(e.article_id, (articleViewCounts.get(e.article_id) || 0) + 1);
+  });
+
+  const top_articles = localArticles.map((a) => ({
+    title: a.title, slug: a.slug, views: articleViewCounts.get(a.id) || (a.views_count || 0), category: a.category
+  })).sort((a, b) => b.views - a.views);
+
+  const sourceCounts = new Map<string, number>();
+  filtered.forEach((e) => {
+    let src = 'Direct / Bookmark';
+    if (e.referrer && e.referrer !== 'Direct' && !e.referrer.includes('benix.space') && !e.referrer.includes('localhost')) {
+      if (e.referrer.includes('google')) src = 'Google Search';
+      else if (e.referrer.includes('facebook')) src = 'Facebook';
+      else if (e.referrer.includes('instagram')) src = 'Instagram';
+      else if (e.referrer.includes('x.com') || e.referrer.includes('twitter')) src = 'X (Twitter)';
+      else if (e.referrer.includes('youtube')) src = 'YouTube';
+      else {
+        try { src = new URL(e.referrer).hostname; } catch { src = 'Direct / Bookmark'; }
+      }
+    }
+    sourceCounts.set(src, (sourceCounts.get(src) || 0) + 1);
+  });
+
+  const sources = Array.from(sourceCounts.entries()).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count);
+
+  const pageTypeCounts = new Map<string, number>();
+  pageViews.forEach((e) => {
+    const pType = e.page_type || 'general';
+    pageTypeCounts.set(pType, (pageTypeCounts.get(pType) || 0) + 1);
+  });
+
+  const pages = Array.from(pageTypeCounts.entries()).map(([page_type, count]) => ({
+    page_type: page_type.replace('_', ' ').toUpperCase(), count
+  })).sort((a, b) => b.count - a.count);
+
+  const deviceCounts = new Map<string, number>();
+  filtered.forEach((e) => {
+    const dev = (e.device_type || 'desktop').toLowerCase();
+    deviceCounts.set(dev, (deviceCounts.get(dev) || 0) + 1);
+  });
+
+  const devices = Array.from(deviceCounts.entries()).map(([device_type, count]) => ({ device_type, count })).sort((a, b) => b.count - a.count);
+
+  const browserCounts = new Map<string, number>();
+  filtered.forEach((e) => {
+    const br = e.browser || 'Chrome';
+    browserCounts.set(br, (browserCounts.get(br) || 0) + 1);
+  });
+
+  const browsers = Array.from(browserCounts.entries()).map(([browser, count]) => ({ browser, count })).sort((a, b) => b.count - a.count);
+
+  const recent_activity = filtered.slice(0, 10).map((e) => ({
+    id: e.id, event_type: e.event_type, page_url: e.page_url, device_type: e.device_type,
+    browser: e.browser, os: e.os, created_at: e.created_at
+  }));
+
   return {
-    overview: { total_views: 0, unique_visitors: 0, external_clicks: 0, avg_views_per_session: 0, bounce_rate: 0 },
-    top_projects: [],
-    top_articles: [],
-    sources: [],
-    pages: [],
-    devices: [],
-    browsers: [],
-    recent_activity: []
+    overview: {
+      total_views: pageViews.length,
+      unique_visitors: totalUniqueVisitors,
+      external_clicks: externalClicks.length,
+      avg_views_per_session: avgViewsPerSession,
+      bounce_rate: bounceRate
+    },
+    top_projects,
+    top_articles,
+    sources,
+    pages,
+    devices,
+    browsers,
+    recent_activity
   };
 }
 

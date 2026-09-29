@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { recordClientAnalyticsEvent } from '../services/api';
 
 function getSessionId(): string {
   let sessionId = localStorage.getItem('benix_session_id');
@@ -33,23 +34,19 @@ function detectDevice(): { device: string; browser: string; os: string } {
 export function trackPageView(pageUrl: string, pageType: string, projectId?: number, articleId?: number) {
   try {
     const { device, browser, os } = detectDevice();
-    fetch('/api/analytics/track', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        event_type: 'page_view',
-        page_url: pageUrl,
-        page_type: pageType,
-        project_id: projectId || null,
-        article_id: articleId || null,
-        referrer: document.referrer || 'Direct',
-        user_agent: navigator.userAgent,
-        device_type: device,
-        browser,
-        os,
-        session_id: getSessionId()
-      })
-    }).catch(() => {});
+    recordClientAnalyticsEvent({
+      event_type: 'page_view',
+      page_url: pageUrl,
+      page_type: pageType,
+      project_id: projectId || null,
+      article_id: articleId || null,
+      referrer: document.referrer || 'Direct',
+      user_agent: navigator.userAgent,
+      device_type: device,
+      browser,
+      os,
+      session_id: getSessionId()
+    });
   } catch (err) {
     // Silent catch for analytics
   }
@@ -58,22 +55,18 @@ export function trackPageView(pageUrl: string, pageType: string, projectId?: num
 export function trackProjectClick(projectId: number, projectUrl: string) {
   try {
     const { device, browser, os } = detectDevice();
-    fetch('/api/analytics/track', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        event_type: 'project_external_click',
-        page_url: window.location.href,
-        page_type: 'project_click',
-        project_id: projectId,
-        referrer: document.referrer || 'Direct',
-        user_agent: navigator.userAgent,
-        device_type: device,
-        browser,
-        os,
-        session_id: getSessionId()
-      })
-    }).catch(() => {});
+    recordClientAnalyticsEvent({
+      event_type: 'project_external_click',
+      page_url: window.location.href,
+      page_type: 'project_click',
+      project_id: projectId,
+      referrer: document.referrer || 'Direct',
+      user_agent: navigator.userAgent,
+      device_type: device,
+      browser,
+      os,
+      session_id: getSessionId()
+    });
   } catch (err) {
     // Silent catch
   }
