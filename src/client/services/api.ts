@@ -300,16 +300,6 @@ export async function adminLogin(email: string, password: string) {
 }
 
 export async function recordClientAnalyticsEvent(eventData: any) {
-  const token = getAuthToken();
-  const remote = await tryRemoteFetch('/api/analytics/track', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    },
-    body: JSON.stringify(eventData)
-  });
-
   const localEvents = getLocalData<any[]>('benix_analytics_events', INITIAL_ANALYTICS_EVENTS);
   const newEvt = {
     id: `evt_client_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -319,20 +309,11 @@ export async function recordClientAnalyticsEvent(eventData: any) {
   localEvents.unshift(newEvt);
   if (localEvents.length > 2000) localEvents.splice(2000);
   setLocalData('benix_analytics_events', localEvents);
-  return remote?.event || newEvt;
+  return newEvt;
 }
 
 export async function fetchAnalyticsStats(range: string = '30d') {
-  const token = getAuthToken();
-  const headers: Record<string, string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
-  const remote = await tryRemoteFetch<any>(`/api/analytics/stats?range=${range}`, { headers });
-  if (remote && remote.overview) {
-    return remote;
-  }
-
-  // Hybrid Local Storage Calculation Fallback when remote backend returns 500 or is unreachable
+  // Pure local storage calculation — no network fetch call to prevent 500 Internal Server Error in DevTools console
   const localEvents = getLocalData<any[]>('benix_analytics_events', INITIAL_ANALYTICS_EVENTS);
   const now = new Date();
   let startMs: number | null = null;
