@@ -5,6 +5,7 @@ import { AdSenseUnit } from '../components/common/AdSenseUnit';
 import { fetchProjectBySlug, fetchProjects } from '../services/api';
 import { trackPageView, trackProjectClick } from '../analytics/tracker';
 import { Project } from '../types';
+import { getProjectImageUrl } from '../utils/images';
 import { ExternalLink, ArrowLeft, Layers, Monitor, AlertCircle, Sparkles, ArrowRight } from 'lucide-react';
 
 export const ProjectDetailPage: React.FC = () => {
@@ -204,7 +205,7 @@ export const ProjectDetailPage: React.FC = () => {
               <span className="text-xs text-slate-400 font-mono ml-2">{project.url}</span>
             </div>
             <img
-              src={project.image_url || 'https://i.postimg.cc/85zP6mK2/benix-tv-cover.jpg'}
+              src={getProjectImageUrl(project)}
               alt={project.name}
               className="w-full h-auto max-h-[500px] object-cover object-top"
             />

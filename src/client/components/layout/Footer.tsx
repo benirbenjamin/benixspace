@@ -14,9 +14,7 @@ export const Footer: React.FC = () => {
           {/* Column 1: Company Profile */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-sky-400 flex items-center justify-center text-white shadow-lg">
-                <Rocket className="w-4 h-4" />
-              </div>
+              <img src="/logo.png" alt="NebeluRw Logo" className="w-9 h-9 object-contain" />
               <span className="font-extrabold text-xl tracking-tight text-white">
                 BenixSpace
               </span>

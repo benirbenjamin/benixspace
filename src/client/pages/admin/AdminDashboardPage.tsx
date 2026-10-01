@@ -8,6 +8,8 @@ import {
   Layers, ExternalLink, TrendingUp, Sparkles, ArrowRight
 } from 'lucide-react';
 
+import { getProjectImageUrl } from '../../utils/images';
+
 export const AdminDashboardPage: React.FC = () => {
   const [stats, setStats] = useState<any>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -137,7 +139,7 @@ export const AdminDashboardPage: React.FC = () => {
               {projects.slice(0, 5).map((p) => (
                 <div key={p.id} className="p-4 rounded-2xl bg-white border border-slate-100 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 truncate">
-                    <img src={p.image_url} alt={p.name} className="w-10 h-10 rounded-xl object-cover shrink-0" />
+                    <img src={getProjectImageUrl(p)} alt={p.name} className="w-10 h-10 rounded-xl object-cover shrink-0" />
                     <div className="truncate">
                       <h4 className="text-sm font-bold text-slate-900 truncate">{p.name}</h4>
                       <span className="text-[11px] text-slate-500 block truncate">{p.url}</span>

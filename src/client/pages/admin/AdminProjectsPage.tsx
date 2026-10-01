@@ -4,6 +4,8 @@ import { fetchProjects, saveProject, deleteProject } from '../../services/api';
 import { Project } from '../../types';
 import { Plus, Edit, Trash2, ExternalLink, Sparkles, X, CheckCircle2, AlertCircle } from 'lucide-react';
 
+import { getProjectImageUrl } from '../../utils/images';
+
 export const AdminProjectsPage: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,7 +139,7 @@ export const AdminProjectsPage: React.FC = () => {
                     <tr key={proj.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="p-4 font-bold text-slate-900">
                         <div className="flex items-center gap-3">
-                          <img src={proj.image_url} alt={proj.name} className="w-10 h-10 rounded-xl object-cover" />
+                          <img src={getProjectImageUrl(proj)} alt={proj.name} className="w-10 h-10 rounded-xl object-cover" />
                           <div>
                             <span className="block">{proj.name}</span>
                             {proj.featured && (

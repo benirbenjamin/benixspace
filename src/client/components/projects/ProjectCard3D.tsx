@@ -1,8 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ExternalLink, Info, Sparkles, Layers } from 'lucide-react';
-import { Project } from '../../types';
-import { trackProjectClick } from '../../analytics/tracker';
+import { getProjectImageUrl } from '../../utils/images';
 
 interface ProjectCard3DProps {
   project: Project;
@@ -99,7 +98,7 @@ export const ProjectCard3D: React.FC<ProjectCard3DProps> = ({ project }) => {
 
             <div className="h-44 sm:h-48 w-full overflow-hidden bg-slate-900 relative">
               <img
-                src={project.image_url || 'https://i.postimg.cc/85zP6mK2/benix-tv-cover.jpg'}
+                src={getProjectImageUrl(project)}
                 alt={project.name}
                 className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
                 loading="lazy"
