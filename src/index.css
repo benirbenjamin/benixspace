@@ -85,6 +85,111 @@
   background: #0284c7;
 }
 
+/* Article Content Typography & Vertical Spacing */
+.article-content {
+  line-height: 1.8;
+  color: #334155;
+}
+
+.article-content p {
+  margin-bottom: 1.25rem;
+}
+
+.article-content h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.article-content h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-top: 1.75rem;
+  margin-bottom: 0.875rem;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.article-content h3 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.article-content h4 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: #0f172a;
+}
+
+.article-content h5 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: #0f172a;
+}
+
+.article-content h6 {
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: #0f172a;
+}
+
+.article-content ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.article-content ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.article-content li {
+  margin-bottom: 0.375rem;
+}
+
+.article-content blockquote {
+  border-left: 4px solid #0284c7;
+  padding-left: 1rem;
+  font-style: italic;
+  color: #475569;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.article-content hr {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+  border-color: #e2e8f0;
+}
+
+.article-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 1rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.article-content iframe {
+  width: 100%;
+  border-radius: 1rem;
+}
+
 /* Reduced Motion Support */
 @media (prefers-reduced-motion: reduce) {
   .animate-float, .animate-float-reverse, .perspective-1000 {
@@ -93,3 +198,4 @@
     transition: none !important;
   }
 }
+
